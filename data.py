@@ -11,4 +11,9 @@ if __name__ == "__main__":
     batch = next(iter(data))
     img, label = batch
     print(img.shape, label.shape)
-    
+    from torchvision.datasets import MNIST
+from torchvision.transforms import Compose, Normalize
+from  torch.utils.data import DataLoader
+
+def get_dataloader(batch_size, train):
+    return DataLoader(dataset=MNIST, batch_size=batch_size, shuffle=True, train=train)
