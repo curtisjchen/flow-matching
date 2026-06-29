@@ -6,7 +6,8 @@ dist/
 wheels/
 *.egg-info
 
-# Virtual environments
-.venv
-
 data/
+__pycache__/
+*.pyc
+.venv/
+checkpoints/

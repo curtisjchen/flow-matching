@@ -1,0 +1,13 @@
+training:
+  epochs: 10
+  batch_size: 32
+  learning_rate: 0.001
+
+model:
+  down_in_1: 1
+  down_out_1: 32
+  down_in_2: 32
+  down_out_2: 64
+  prefinal: 16
+  time_in: 128
+  time_out: 256
