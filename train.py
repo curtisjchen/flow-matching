@@ -4,8 +4,9 @@ from flow import flow_matching_loss
 import torch
 import os
 import yaml
+import argparse
 
-def train(config_path="configs/unet_mnist.yaml"):
+def train(config_path="configs/unet_mnist.yaml", resume_from=None):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
     data = get_dataloader(batch_size=config["training"]["batch_size"], train=True)
@@ -19,7 +20,14 @@ def train(config_path="configs/unet_mnist.yaml"):
     epoch_loss_list = []
     os.makedirs("./checkpoints", exist_ok=True)
     epochs = config["training"]["epochs"]
-    for epoch in range(epochs):
+    if resume_from:
+        checkpoint = torch.load(resume_from, weights_only=True)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch_loss_list = checkpoint.get('epoch_loss_list', [])
+        start_epoch = checkpoint['epoch'] + 1
+
+    for epoch in range(start_epoch if resume_from else 0, epochs):
         epoch_loss = 0
         batch = 0
         for images, _ in data:
@@ -34,19 +42,23 @@ def train(config_path="configs/unet_mnist.yaml"):
         avg_epoch_loss = epoch_loss / batch
         epoch_loss_list.append(avg_epoch_loss)
         print(f"Epoch {epoch+1}/{epochs} | Avg Loss: {avg_epoch_loss:.4f}")
-        save_checkpoint(epoch, model, optimizer, avg_epoch_loss)
+        save_checkpoint(epoch, model, optimizer, epoch_loss_list)
     return epoch_loss_list
             
 
-def save_checkpoint(epoch, model, optimizer, avg_epoch_loss):
+def save_checkpoint(epoch, model, optimizer, epoch_loss_list):
     checkpoint = {
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
-        'loss': avg_epoch_loss
+        'epoch_loss_list' : epoch_loss_list
     }
     filepath = f"./checkpoints/unet_epoch_{epoch}.pt"
     torch.save(checkpoint, filepath)
 
 if __name__ == "__main__":
-    train()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--resume_from", type=str, default=None)
+    parser.add_argument("--config_path", type=str, default="configs/unet_mnist.yaml")
+    args = parser.parse_args()
+    train(resume_from=args.resume_from, config_path=args.config_path)
