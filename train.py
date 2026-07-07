@@ -74,13 +74,13 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
             optimizer.step()
             batch += 1
             if (batch + 1) % 100 == 0:
-                print(f"Epoch {epoch+1}/{epochs} | Batch {batch} | Loss: {loss:.4f}")
+                print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Loss: {loss:.4f}")
             epoch_loss += loss.item()
         avg_epoch_loss = epoch_loss / batch
         epoch_loss_list.append(avg_epoch_loss)
         current_lr = optimizer.param_groups[0]['lr']
         elapsed = time.time() - start
-        print(f"Epoch {epoch+1}/{epochs} | LR: {current_lr:.6f}| Avg Loss: {avg_epoch_loss:.4f} | Time Taken: {elapsed//60:.2f}m {elapsed%60:.0f}s")
+        print(f"Epoch {epoch+1}/{epochs} | LR: {current_lr:.6f}| Avg Loss: {avg_epoch_loss:.5f} | Time Taken: {elapsed//60:.0f}m {elapsed%60:.0f}s")
         save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
         scheduler.step() 
     return epoch_loss_list
