@@ -1,0 +1,14 @@
+training:
+  epochs: 150
+  batch_size: 128
+  learning_rate: 0.0005
+  warmup_epochs: 5
+
+model:
+  type: dit
+  hidden_dim: 192
+  num_heads: 8
+  num_layers: 12
+  patch_size: 4
+  in_channels: 1
+  image_size: 28
