@@ -1,7 +1,8 @@
 training:
-  epochs: 50
+  epochs: 100
   batch_size: 128
-  learning_rate: 0.0005
+  learning_rate: 0.00005
+  warmup_epochs: 5
 
 model:
   type: unet

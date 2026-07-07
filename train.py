@@ -1,4 +1,5 @@
 from models.unet import UNet
+#from models.dit import DIT
 from data import get_dataloader
 from flow import flow_matching_loss
 import torch
@@ -6,6 +7,7 @@ import os
 import yaml
 import argparse
 from pathlib import Path
+import time
 
 def train(config_path="configs/unet_mnist.yaml", resume_from=None):
     with open(config_path, "r") as f:
@@ -14,25 +16,50 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
     print(yaml.dump(config, default_flow_style=False))
     config_stem = Path(config_path).stem
     data = get_dataloader(batch_size=config["training"]["batch_size"], train=True)
-    model = UNet(time_in=config["model"]["time_in"],
-                 time_out=config["model"]["time_out"],
-                 down_in_1=config["model"]["down_in_1"],
-                 down_in_2=config["model"]["down_in_2"],
-                 down_out_1=config["model"]["down_out_1"],
-                 down_out_2=config["model"]["down_out_2"],
-                 prefinal=config["model"]["prefinal"])
+    if config["model"]["type"] == "dit":
+        model = DIT()
+    elif config["model"]["type"] == "unet":
+        model = UNet(time_in=config["model"]["time_in"],
+                    time_out=config["model"]["time_out"],
+                    down_in_1=config["model"]["down_in_1"],
+                    down_in_2=config["model"]["down_in_2"],
+                    down_out_1=config["model"]["down_out_1"],
+                    down_out_2=config["model"]["down_out_2"],
+                    prefinal=config["model"]["prefinal"])
+    else:
+        print("model config not found")
+        return
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["training"]["learning_rate"])
     epoch_loss_list = []
     os.makedirs("./checkpoints", exist_ok=True)
     epochs = config["training"]["epochs"]
+
+    warmup_epochs = config["training"]["warmup_epochs"]
+
+    warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
+        optimizer, start_factor=0.01, end_factor=1.0, total_iters=warmup_epochs
+    )
+    cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=epochs - warmup_epochs
+    )
+    scheduler = torch.optim.lr_scheduler.SequentialLR(
+        optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs]
+    )
+
     if resume_from:
         checkpoint = torch.load(resume_from, weights_only=True)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         epoch_loss_list = checkpoint.get('epoch_loss_list', [])
         start_epoch = checkpoint['epoch'] + 1
+        if 'scheduler_state_dict' in checkpoint:
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        else:
+            for _ in range(start_epoch):
+                scheduler.step()
 
     for epoch in range(start_epoch if resume_from else 0, epochs):
+        start = time.time()
         epoch_loss = 0
         batch = 0
         for images, _ in data:
@@ -46,19 +73,23 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
             epoch_loss += loss.item()
         avg_epoch_loss = epoch_loss / batch
         epoch_loss_list.append(avg_epoch_loss)
-        print(f"Epoch {epoch+1}/{epochs} | Avg Loss: {avg_epoch_loss:.4f}")
-        save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem)
+        current_lr = optimizer.param_groups[0]['lr']
+        elapsed = time.time() - start
+        print(f"Epoch {epoch+1}/{epochs} | LR: {current_lr:.6f}| Avg Loss: {avg_epoch_loss:.4f} | Time Taken: {elapsed//60:.2f}m {elapsed%60:.2f}s")
+        save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
+        scheduler.step() 
     return epoch_loss_list
             
 
-def save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem):
+def save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler):
     checkpoint = {
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
-        'epoch_loss_list' : epoch_loss_list
+        'epoch_loss_list' : epoch_loss_list,
+        'scheduler_state_dict': scheduler.state_dict()
     }
-    filepath = f"./checkpoints/{config_stem}_epoch_{epoch}.pt"
+    filepath = f"./checkpoints/{config_stem}_epoch_{epoch+1}.pt"
     torch.save(checkpoint, filepath)
 
 if __name__ == "__main__":

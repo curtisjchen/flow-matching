@@ -2,23 +2,7 @@ from typing import Any
 
 import torch.nn as nn
 import torch
-
-class TimeEmbedding(nn.Module):
-    def __init__(self, d_in, d_out):
-        super().__init__()
-        self.proj1 = nn.Linear(d_in, d_out)
-        self.silu = nn.SiLU()
-        self.proj2 = nn.Linear(d_out, d_out)
-        self.d_in = d_in
-
-    def forward(self, t):
-        time_embedding = torch.zeros((t.shape[0], self.d_in), device=t.device)
-        for i in range(0, self.d_in, 2):
-            time_embedding[:, i] = torch.sin(t / 10000 ** (i / self.d_in))
-        for i in range(1, self.d_in, 2):
-            time_embedding[:, i] = torch.cos(t / 10000 ** (i / self.d_in))
-        
-        return self.proj2(self.silu(self.proj1(time_embedding)))
+from models.modules import TimeEmbedding
 
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, time_emb_dim):
