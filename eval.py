@@ -5,9 +5,22 @@ from data import get_dataloader
 from torchmetrics.image.fid import FrechetInceptionDistance
 from solver import euler_solve
 import argparse
+import yaml
+from pathlib import Path
 
-def eval(configs="configs/unet_mnist.yaml", checkpoint_path="checkpoints/unet_epoch_29.pt", step_counts=[1,25,50,150,250], batchsize=256, samples=10000):
-    model = UNet()
+
+def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoints/unet_mnist_large_epoch_20.pt", step_counts=[1,25,50,150,250], batchsize=256, samples=10000):
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+    print("Config:")
+    print(yaml.dump(config, default_flow_style=False))
+    model = UNet(time_in=config["model"]["time_in"],
+                 time_out=config["model"]["time_out"],
+                 down_in_1=config["model"]["down_in_1"],
+                 down_in_2=config["model"]["down_in_2"],
+                 down_out_1=config["model"]["down_out_1"],
+                 down_out_2=config["model"]["down_out_2"],
+                 prefinal=config["model"]["prefinal"])
     model.eval()
     checkpoint = torch.load(checkpoint_path, weights_only=True)
     model.load_state_dict(checkpoint["model_state_dict"])
