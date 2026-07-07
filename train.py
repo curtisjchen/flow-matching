@@ -1,5 +1,5 @@
 from models.unet import UNet
-#from models.dit import DIT
+from models.dit import DiT
 from data import get_dataloader
 from flow import flow_matching_loss
 import torch
@@ -17,7 +17,12 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
     config_stem = Path(config_path).stem
     data = get_dataloader(batch_size=config["training"]["batch_size"], train=True)
     if config["model"]["type"] == "dit":
-        model = DIT()
+        model = DiT(hidden_dim=config["model"]["hidden_dim"],
+                    num_heads=config["model"]["num_heads"],
+                    num_layers=config["model"]["num_layers"],
+                    patch_size=config["model"]["patch_size"],
+                    in_channels=config["model"]["in_channels"],
+                    image_size=config["model"]["image_size"])
     elif config["model"]["type"] == "unet":
         model = UNet(time_in=config["model"]["time_in"],
                     time_out=config["model"]["time_out"],
@@ -75,7 +80,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
         epoch_loss_list.append(avg_epoch_loss)
         current_lr = optimizer.param_groups[0]['lr']
         elapsed = time.time() - start
-        print(f"Epoch {epoch+1}/{epochs} | LR: {current_lr:.6f}| Avg Loss: {avg_epoch_loss:.4f} | Time Taken: {elapsed//60:.2f}m {elapsed%60:.2f}s")
+        print(f"Epoch {epoch+1}/{epochs} | LR: {current_lr:.6f}| Avg Loss: {avg_epoch_loss:.4f} | Time Taken: {elapsed//60:.2f}m {elapsed%60:.0f}s")
         save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
         scheduler.step() 
     return epoch_loss_list

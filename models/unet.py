@@ -2,7 +2,7 @@ from typing import Any
 
 import torch.nn as nn
 import torch
-from models.modules import TimeEmbedding
+from modules import TimeEmbedding
 
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, time_emb_dim):

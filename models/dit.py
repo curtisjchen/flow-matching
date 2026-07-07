@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from modules import TimeEmbedding
 
 class PatchEmbed(nn.Module):
     def __init__(self, in_channels, patchsize, hidden_dims, image_size):
@@ -34,6 +35,55 @@ class DiTBlock(nn.Module):
         nn.init.zeros_(self.adaLN.bias)
 
     def forward(self, image, t):
+        shift1, scale1, gate1, shift2, scale2, gate2 = self.adaLN(t).chunk(6, dim=-1)
+        shift1 = shift1[:,None,:]
+        scale1 = scale1[:,None,:]
+        gate1 = gate1[:,None,:]
+        shift2 = shift2[:,None,:]
+        scale2 = scale2[:,None,:]
+        gate2 = gate2[:,None,:]
+        h = self.ln1(image)
+        h = h * (1 + scale1) + shift1
+        image = image + gate1 * self.attention(h, h, h)[0]
+        h = self.ln2(image)
+        h = h * (1  + scale2) + shift2
+        image = image + gate2 * self.down_proj(self.swiglu(self.up_proj(h)))
+        return image
+
+class DiT(nn.Module):
+    def __init__(self, hidden_dim, num_heads, num_layers, patch_size, in_channels, image_size):
+        super().__init__()
+        self.num_layers = num_layers
+        self.patchsize = patch_size
+        self.in_channels = in_channels
+        self.grid_size = image_size // patch_size
+        self.patch_embed = PatchEmbed(in_channels=in_channels, patchsize=patch_size, hidden_dims=hidden_dim, image_size=image_size)
+        self.ditblocks = nn.ModuleList(DiTBlock(hidden_dim=hidden_dim, num_heads=num_heads) for _ in range(num_layers))
+        self.time_embed = TimeEmbedding(hidden_dim, hidden_dim)
+        self.final_layer = nn.Linear(hidden_dim, patch_size * patch_size * in_channels)
+
+
+    def forward(self, image, t):
+        b, c, h, w = image.shape
+        image = self.patch_embed(image) 
+        time_embed = self.time_embed(t)
+        for block in self.ditblocks:
+            image = block(image, time_embed)
+        image = self.final_layer(image)
+        image = image.reshape(b, self.grid_size, self.grid_size, self.patchsize, self.patchsize, self.in_channels)
+        image = image.permute(0, 5, 1, 3, 2, 4)
+        image = image.reshape(b, c, h, w)
+
+        return image
+
+if __name__ == "__main__":
+    model = DiT(hidden_dim=256, num_heads=4, num_layers=6, patch_size=4, in_channels=1, image_size=28)
+    x = torch.randn(4, 1, 28, 28)
+    t = torch.rand(4)
+    out = model(x, t)
+    print(out.shape)
+
+
 
 
 
