@@ -2,8 +2,10 @@ training:
   epochs: 30
   batch_size: 32
   learning_rate: 0.0005
+  warmup_epochs: 5
 
 model:
+  type: unet
   down_in_1: 1
   down_out_1: 32
   down_in_2: 32
