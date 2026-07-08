@@ -14,6 +14,7 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
         config = yaml.safe_load(f)
     print("Config:")
     print(yaml.dump(config, default_flow_style=False))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = UNet(time_in=config["model"]["time_in"],
                  time_out=config["model"]["time_out"],
                  down_in_1=config["model"]["down_in_1"],
@@ -21,15 +22,19 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
                  down_out_1=config["model"]["down_out_1"],
                  down_out_2=config["model"]["down_out_2"],
                  prefinal=config["model"]["prefinal"])
-    model.eval()
-    checkpoint = torch.load(checkpoint_path, weights_only=True)
+    
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint["model_state_dict"])
+    model = model.to(device)
+    model.eval()
     dataloader = get_dataloader(batch_size=batchsize, train=False)
     c, w, h = dataloader.dataset[0][0].shape
     res_map = {}
 
     fid = FrechetInceptionDistance(feature=2048, normalize=True, input_img_size=(3, w, h), reset_real_features=False)
+    fid = fid.to(device)
     for real_images, _ in dataloader:
+        real_images = real_images.to(device)
         real_images = denormalize(real_images)
         real_images = real_images.expand(-1, 3, -1, -1)
         fid.update(real_images, real=True)

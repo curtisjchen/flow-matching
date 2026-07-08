@@ -14,6 +14,8 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
         config = yaml.safe_load(f)
     print("Config:")
     print(yaml.dump(config, default_flow_style=False))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
     config_stem = Path(config_path).stem
     data = get_dataloader(batch_size=config["training"]["batch_size"], train=True)
     if config["model"]["type"] == "dit":
@@ -34,6 +36,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
     else:
         print("model config not found")
         return
+    model = model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["training"]["learning_rate"])
     epoch_loss_list = []
     os.makedirs("./checkpoints", exist_ok=True)
@@ -53,7 +56,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
     )
 
     if resume_from:
-        checkpoint = torch.load(resume_from, weights_only=True)
+        checkpoint = torch.load(resume_from, map_location=device, weights_only=True)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         epoch_loss_list = checkpoint.get('epoch_loss_list', [])
@@ -69,6 +72,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
         epoch_loss = 0
         batch = 0
         for images, _ in data:
+            images = images.to(device)
             optimizer.zero_grad()
             loss = flow_matching_loss(model, images)
             loss.backward()
