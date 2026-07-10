@@ -63,10 +63,10 @@ class DiT(nn.Module):
         self.final_layer = nn.Linear(hidden_dim, patch_size * patch_size * in_channels)
 
 
-    def forward(self, image, t):
+    def forward(self, image, r:torch.Tensor, t: torch.Tensor):
         b, c, h, w = image.shape
         image = self.patch_embed(image) 
-        time_embed = self.time_embed(t)
+        time_embed = self.time_embed(r, t)
         for block in self.ditblocks:
             image = block(image, time_embed)
         image = self.final_layer(image)
