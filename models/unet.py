@@ -76,18 +76,18 @@ class UNet(nn.Module):
         self.downsample1 = nn.Conv2d(in_channels=down_out_1, out_channels=down_out_1, kernel_size=3, padding=1, stride=2)
         self.downsample2 = nn.Conv2d(in_channels=down_out_2, out_channels=down_out_2, kernel_size=3, padding=1, stride=2)
     
-    def forward(self, image, time):
+    def forward(self, image, r: torch.Tensor, t: torch.Tensor):
         stack = []
-        t = self.time_emb(time)
-        image = self.down1(image, t)
+        t_emb = self.time_emb(r, t)
+        image = self.down1(image, t_emb)
         stack.append(image)
         image = self.downsample1(image)
-        image = self.down2(image, t)
+        image = self.down2(image, t_emb)
         stack.append(image)
         image = self.downsample2(image)
-        image = self.bottleneck(image, t)
-        image = self.up1(image, stack.pop(), t)
-        image = self.up2(image, stack.pop(), t)
+        image = self.bottleneck(image, t_emb)
+        image = self.up1(image, stack.pop(), t_emb)
+        image = self.up2(image, stack.pop(), t_emb)
         image = self.final(image)
         return image
 
