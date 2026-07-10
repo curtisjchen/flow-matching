@@ -9,7 +9,7 @@ import yaml
 from pathlib import Path
 
 
-def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoints/unet_mnist_large_epoch_20.pt", step_counts=[1,25,50,150,250], batchsize=256, samples=10000):
+def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoints/unet_mnist_large_epoch_100.pt", step_counts=[1,25,50,150,250], batchsize=256, samples=10000):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
     print("Config:")

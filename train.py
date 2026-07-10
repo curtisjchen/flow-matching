@@ -8,6 +8,8 @@ import yaml
 import argparse
 from pathlib import Path
 import time
+import torchvision
+from solver import euler_solve
 
 def train(config_path="configs/unet_mnist.yaml", resume_from=None):
     with open(config_path, "r") as f:
@@ -37,6 +39,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
         print("model config not found")
         return
     model = model.to(device)
+    model = torch.compile(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["training"]["learning_rate"])
     epoch_loss_list = []
     os.makedirs("./checkpoints", exist_ok=True)
@@ -88,6 +91,14 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
         print(f"Epoch {epoch+1}/{epochs} | LR: {current_lr:.6f}| Avg Loss: {avg_epoch_loss:.5f} | Time Taken: {elapsed//60:.0f}m {elapsed%60:.0f}s")
         save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
         scheduler.step() 
+        if (epoch + 1) % 10 == 0:
+            model.eval()
+            with torch.inference_mode():
+                sample = euler_solve(model=model, N=50, shape=(16, 1, 28, 28))
+            sample = sample * 0.3081 + 0.1307
+            grid = torchvision.utils.make_grid(sample.cpu())
+            torchvision.utils.save_image(grid, f"sample_images/{config_stem}_epoch_{epoch+1}.png")
+            model.train()
     return epoch_loss_list
             
 
