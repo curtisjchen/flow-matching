@@ -2,6 +2,7 @@ from models.unet import UNet
 from models.dit import DiT
 from data import get_dataloader
 from flow import flow_matching_loss
+from mean_flow import mean_flow_loss
 import torch
 import os
 import yaml
@@ -12,6 +13,7 @@ import torchvision
 from solver import euler_solve
 
 def train(config_path="configs/unet_mnist.yaml", resume_from=None):
+    os.makedirs("sample_images", exist_ok=True)
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
     print("Config:")
@@ -20,6 +22,8 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
     print(f"Using device: {device}")
     config_stem = Path(config_path).stem
     data = get_dataloader(batch_size=config["training"]["batch_size"], train=True)
+    loss_type = config["training"].get("loss_type", "flow_matching")
+    print(f"Using loss: {loss_type}")
     if config["model"]["type"] == "dit":
         model = DiT(hidden_dim=config["model"]["hidden_dim"],
                     num_heads=config["model"]["num_heads"],
@@ -39,7 +43,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
         print("model config not found")
         return
     model = model.to(device)
-    model = torch.compile(model)
+    # model = torch.compile(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["training"]["learning_rate"])
     epoch_loss_list = []
     os.makedirs("./checkpoints", exist_ok=True)
@@ -77,8 +81,12 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
         for images, _ in data:
             images = images.to(device)
             optimizer.zero_grad()
-            loss = flow_matching_loss(model, images)
+            if loss_type == "mean_flow":
+                loss = mean_flow_loss(model, images)
+            else:
+                loss = flow_matching_loss(model, images)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             batch += 1
             if (batch + 1) % 100 == 0:
