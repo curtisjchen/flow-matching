@@ -51,16 +51,20 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
 
     warmup_epochs = config["training"]["warmup_epochs"]
     min_lr = config["training"].get("min_lr", 0)
-
-    warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
-        optimizer, start_factor=0.01, end_factor=1.0, total_iters=warmup_epochs
-    )
-    cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=epochs - warmup_epochs, eta_min=min_lr
-    )
-    scheduler = torch.optim.lr_scheduler.SequentialLR(
-        optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs]
-    )
+    if warmup_epochs == 0:
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=epochs, eta_min=min_lr
+        )
+    else:
+        warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
+            optimizer, start_factor=0.01, end_factor=1.0, total_iters=warmup_epochs
+        )
+        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=epochs - warmup_epochs, eta_min=min_lr
+        )
+        scheduler = torch.optim.lr_scheduler.SequentialLR(
+            optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs]
+        )
 
     if resume_from:
         checkpoint = torch.load(resume_from, map_location=device, weights_only=True)
