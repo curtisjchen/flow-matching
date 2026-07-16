@@ -3,13 +3,13 @@ from models.unet import UNet
 from generate import generate
 from data import get_dataloader
 from torchmetrics.image.fid import FrechetInceptionDistance
-from solver import euler_solve
+from solver import euler_solve, one_step_sample
 import argparse
 import yaml
 from pathlib import Path
 
 
-def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoints/unet_mnist_large_epoch_100.pt", step_counts=[1,25,50,150,250], batchsize=256, samples=10000):
+def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoints/unet_mnist_large_epoch_100.pt", step_counts=[25,100], batchsize=256, samples=1000):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
     print("Config:")
@@ -41,7 +41,10 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
     print(f"Real features count: {fid.real_features_num_samples}")
     for steps in step_counts:
         for _ in range(samples // batchsize):
-            sample = euler_solve(model=model, N=steps, shape=(batchsize, c, w, h))
+            if config["training"]["loss_type"] == "flow_matching":
+                sample = euler_solve(model=model, N=n_steps, shape=(samples, 1, 28, 28))
+            else:
+                sample = one_step_sample(model=model, N=n_steps, shape=(samples, 1, 28, 28))
             sample = denormalize(sample)
             sample = sample.expand(-1, 3, -1, -1)
             fid.update(sample, real=False)
@@ -55,6 +58,10 @@ def denormalize(images):
     return images * 0.3081 + 0.1307
 
 if __name__ == "__main__":
-    res_map = eval()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config_path", type=str, default="configs/unet_mnist_large.yaml")
+    parser.add_argument("--checkpoint_path", type=str, default="checkpoints/unet_mnist_large_epoch_34.pt")
+    args = parser.parse_args()
+    res_map = eval(config_path=args.config_path, checkpoint_path=args.checkpoint_path, step_counts=[5,25,60,100], batchsize=256, samples=1000)
     for key in res_map:
         print(f"The FID for {key} steps is: {res_map[key]}")

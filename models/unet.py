@@ -68,7 +68,7 @@ class UNet(nn.Module):
                            out_channels=prefinal,
                            time_emb_dim=time_out)
         self.final = nn.Conv2d(in_channels=prefinal, 
-                               out_channels=1, 
+                               out_channels=down_in_1, 
                                kernel_size=1, 
                                stride=1, 
                                padding=0)

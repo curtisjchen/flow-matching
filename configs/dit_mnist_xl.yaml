@@ -10,6 +10,6 @@ model:
   hidden_dim: 384
   num_heads: 8
   num_layers: 8
-  patch_size: 2
+  patch_size: 4
   in_channels: 1
   image_size: 28

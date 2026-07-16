@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-def mean_flow_loss(model, x_1, p_rt=0.5):
+def mean_flow_loss(model, x_1, p_rt=0.25):
     device = x_1.device
     b = x_1.shape[0]
  
