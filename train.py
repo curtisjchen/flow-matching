@@ -53,7 +53,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
     min_lr = config["training"].get("min_lr", 0)
     if warmup_epochs == 0:
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=epochs - warmup_epochs, eta_min=min_lr
+            optimizer, T_max=epochs, eta_min=min_lr
         )
     else:
         warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
