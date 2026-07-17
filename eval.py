@@ -8,6 +8,7 @@ import argparse
 import yaml
 from pathlib import Path
 import time
+import os
 
 
 def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoints/unet_mnist_large_epoch_100.pt", step_counts=[25,100], batchsize=256, samples=1000):
@@ -36,11 +37,16 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
     fid = fid.to(device)
 
     t0 = time.time()
-    for real_images, _ in dataloader:
-        real_images = real_images.to(device)
-        real_images = denormalize(real_images)
-        real_images = real_images.expand(-1, 3, -1, -1)
-        fid.update(real_images, real=True)
+    CACHE_PATH = "fid_real_cache.pt"
+    if os.path.exists(CACHE_PATH):
+        fid.load_state_dict(torch.load(CACHE_PATH, map_location=device))
+    else:
+        for real_images, _ in dataloader:
+            real_images = real_images.to(device)
+            real_images = denormalize(real_images)
+            real_images = real_images.expand(-1, 3, -1, -1)
+            fid.update(real_images, real=True)
+        torch.save(fid.state_dict(), CACHE_PATH)
     print(f"Real features count: {fid.real_features_num_samples} | Time: {time.time() - t0:.1f}s")
     
     
