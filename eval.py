@@ -7,6 +7,7 @@ from solver import euler_solve, one_step_sample
 import argparse
 import yaml
 from pathlib import Path
+import time
 
 
 def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoints/unet_mnist_large_epoch_100.pt", step_counts=[25,100], batchsize=256, samples=1000):
@@ -33,24 +34,35 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
 
     fid = FrechetInceptionDistance(feature=2048, normalize=True, input_img_size=(3, w, h), reset_real_features=False)
     fid = fid.to(device)
+
+    t0 = time.time()
     for real_images, _ in dataloader:
         real_images = real_images.to(device)
         real_images = denormalize(real_images)
         real_images = real_images.expand(-1, 3, -1, -1)
         fid.update(real_images, real=True)
-    print(f"Real features count: {fid.real_features_num_samples}")
+    print(f"Real features count: {fid.real_features_num_samples} | Time: {time.time() - t0:.1f}s")
+    
+    
     for steps in step_counts:
+        t1 = time.time()
         for _ in range(samples // batchsize):
             if config["training"]["loss_type"] == "flow_matching":
-                sample = euler_solve(model=model, N=n_steps, shape=(samples, 1, 28, 28))
+                sample = euler_solve(model=model, N=steps, shape=(batchsize, 1, 28, 28))
             else:
-                sample = one_step_sample(model=model, N=n_steps, shape=(samples, 1, 28, 28))
+                sample = one_step_sample(model=model, shape=(batchsize, 1, 28, 28))
             sample = denormalize(sample)
             sample = sample.expand(-1, 3, -1, -1)
             fid.update(sample, real=False)
+        
+        gen_time = time.time() - t1
+        t2 = time.time()
         res_map[steps] = fid.compute()
+        fid_compute_time = time.time() - t2
+
+        print(f"Steps={steps} Gen time: {gen_time:.1f}s | FID compute time: {fid_compute_time:.1f}s")
+
         fid.reset()
-        print(f"Real features count: {fid.real_features_num_samples}")
 
     return res_map
 
@@ -62,6 +74,6 @@ if __name__ == "__main__":
     parser.add_argument("--config_path", type=str, default="configs/unet_mnist_large.yaml")
     parser.add_argument("--checkpoint_path", type=str, default="checkpoints/unet_mnist_large_epoch_34.pt")
     args = parser.parse_args()
-    res_map = eval(config_path=args.config_path, checkpoint_path=args.checkpoint_path, step_counts=[5,25,60,100], batchsize=256, samples=1000)
+    res_map = eval(config_path=args.config_path, checkpoint_path=args.checkpoint_path, step_counts=[1, 4, 16, 32, 64, 128], batchsize=256, samples=1024)
     for key in res_map:
         print(f"The FID for {key} steps is: {res_map[key]}")
