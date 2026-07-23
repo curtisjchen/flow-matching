@@ -1,0 +1,17 @@
+training:
+  epochs: 600
+  loss_type: flow_matching
+  batch_size: 256
+  learning_rate: 0.00002
+  warmup_epochs: 0
+  min_lr: 0.000001
+
+model:
+  type: unet
+  down_in_1: 1
+  down_out_1: 64
+  down_in_2: 64
+  down_out_2: 256
+  prefinal: 32
+  time_in: 128
+  time_out: 256

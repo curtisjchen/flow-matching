@@ -12,3 +12,5 @@ __pycache__/
 .venv/
 checkpoints/
 sample_images/
+
+fid_real_cache.pt

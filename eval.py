@@ -9,6 +9,8 @@ import yaml
 from pathlib import Path
 import time
 import os
+import json
+from datetime import datetime
 
 
 def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoints/unet_mnist_large_epoch_100.pt", step_counts=[25,100], batchsize=256, samples=1000):
@@ -39,14 +41,21 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
     t0 = time.time()
     CACHE_PATH = "fid_real_cache.pt"
     if os.path.exists(CACHE_PATH):
-        fid.load_state_dict(torch.load(CACHE_PATH, map_location=device))
+        cache = torch.load(CACHE_PATH, map_location=device)
+        fid.real_features_sum = cache["real_features_sum"].to(device)
+        fid.real_features_cov_sum = cache["real_features_cov_sum"].to(device)
+        fid.real_features_num_samples = cache["real_features_num_samples"]
     else:
         for real_images, _ in dataloader:
             real_images = real_images.to(device)
             real_images = denormalize(real_images)
             real_images = real_images.expand(-1, 3, -1, -1)
             fid.update(real_images, real=True)
-        torch.save(fid.state_dict(), CACHE_PATH)
+        torch.save({
+            "real_features_sum": fid.real_features_sum.cpu(),
+            "real_features_cov_sum": fid.real_features_cov_sum.cpu(),
+            "real_features_num_samples": fid.real_features_num_samples,
+        }, CACHE_PATH)
     print(f"Real features count: {fid.real_features_num_samples} | Time: {time.time() - t0:.1f}s")
     
     
@@ -70,6 +79,21 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
 
         fid.reset()
 
+    results = {
+        "checkpoint_path": checkpoint_path,
+        "config_path": config_path,
+        "config": config,
+        "step_counts": step_counts,
+        "samples": samples,
+        "fid": {str(k): float(v) for k, v in res_map.items()},
+        "timestamp": datetime.now().isoformat(),
+    }
+
+    os.makedirs("results", exist_ok=True)
+    checkpoint_stem = Path(checkpoint_path).stem
+    with open(f"results/{checkpoint_stem}.json", "w") as f:
+        json.dump(results, f, indent=2)
+
     return res_map
 
 def denormalize(images):
@@ -80,6 +104,6 @@ if __name__ == "__main__":
     parser.add_argument("--config_path", type=str, default="configs/unet_mnist_large.yaml")
     parser.add_argument("--checkpoint_path", type=str, default="checkpoints/unet_mnist_large_epoch_34.pt")
     args = parser.parse_args()
-    res_map = eval(config_path=args.config_path, checkpoint_path=args.checkpoint_path, step_counts=[1, 4, 16, 32, 64, 128], batchsize=256, samples=1024)
+    res_map = eval(config_path=args.config_path, checkpoint_path=args.checkpoint_path, step_counts=[1, 2, 4, 8, 16, 32, 64], batchsize=256, samples=2048)
     for key in res_map:
         print(f"The FID for {key} steps is: {res_map[key]}")

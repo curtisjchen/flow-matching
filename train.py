@@ -12,7 +12,7 @@ import time
 import torchvision
 from solver import euler_solve
 
-def train(config_path="configs/unet_mnist.yaml", resume_from=None):
+def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_scheduler=False):
     os.makedirs("sample_images", exist_ok=True)
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
@@ -68,6 +68,9 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None):
 
     if resume_from:
         checkpoint = torch.load(resume_from, map_location=device, weights_only=True)
+        if reset_scheduler:
+            del checkpoint["scheduler_state_dict"]
+            print("scheduler reset")
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         epoch_loss_list = checkpoint.get('epoch_loss_list', [])
@@ -129,5 +132,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--resume_from", type=str, default=None)
     parser.add_argument("--config_path", type=str, default="configs/unet_mnist.yaml")
+    parser.add_argument("--reset_scheduler", action="store_true")
     args = parser.parse_args()
-    train(resume_from=args.resume_from, config_path=args.config_path)
+    train(resume_from=args.resume_from, config_path=args.config_path, reset_scheduler=args.reset_scheduler)
