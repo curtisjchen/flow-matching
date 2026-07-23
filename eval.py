@@ -59,24 +59,30 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
     print(f"Real features count: {fid.real_features_num_samples} | Time: {time.time() - t0:.1f}s")
     
     
-    for steps in step_counts:
+    if config["training"]["loss_type"] == "flow_matching":
+        for steps in step_counts:
+            t1 = time.time()
+            for _ in range(samples // batchsize):
+                sample = euler_solve(model=model, N=steps, shape=(batchsize, c, w, h))
+                sample = denormalize(sample)
+                sample = sample.expand(-1, 3, -1, -1)
+                fid.update(sample, real=False)
+            gen_time = time.time() - t1
+            t2 = time.time()
+            res_map[steps] = fid.compute()
+            print(f"Steps={steps} Gen time: {gen_time:.1f}s | FID compute time: {time.time()-t2:.1f}s")
+            fid.reset()
+    else:
         t1 = time.time()
         for _ in range(samples // batchsize):
-            if config["training"]["loss_type"] == "flow_matching":
-                sample = euler_solve(model=model, N=steps, shape=(batchsize, 1, 28, 28))
-            else:
-                sample = one_step_sample(model=model, shape=(batchsize, 1, 28, 28))
+            sample = one_step_sample(model=model, shape=(batchsize, c, w, h))
             sample = denormalize(sample)
             sample = sample.expand(-1, 3, -1, -1)
             fid.update(sample, real=False)
-        
         gen_time = time.time() - t1
         t2 = time.time()
-        res_map[steps] = fid.compute()
-        fid_compute_time = time.time() - t2
-
-        print(f"Steps={steps} Gen time: {gen_time:.1f}s | FID compute time: {fid_compute_time:.1f}s")
-
+        res_map[1] = fid.compute()  # mean flow's one-step result, keyed under NFE=1 for fair comparison against FM's step=1
+        print(f"one_step_sample Gen time: {gen_time:.1f}s | FID compute time: {time.time()-t2:.1f}s")
         fid.reset()
 
     results = {
