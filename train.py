@@ -10,7 +10,7 @@ import argparse
 from pathlib import Path
 import time
 import torchvision
-from solver import euler_solve
+from solver import euler_solve, one_step_sample
 
 def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_scheduler=False):
     os.makedirs("sample_images", exist_ok=True)
@@ -109,7 +109,10 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         if (epoch + 1) % 10 == 0:
             model.eval()
             with torch.inference_mode():
-                sample = euler_solve(model=model, N=50, shape=(16, 1, 28, 28))
+                if loss_type == "mean_flow":
+                    sample = one_step_sample(model=model, shape=(16, c, w, h))
+                else:
+                    sample = euler_solve(model=model, N=50, shape=(16, c, w, h))
             sample = sample * 0.3081 + 0.1307
             grid = torchvision.utils.make_grid(sample.cpu())
             torchvision.utils.save_image(grid, f"sample_images/{config_stem}_epoch_{epoch+1}.png")

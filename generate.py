@@ -25,10 +25,10 @@ def generate(config_path="configs/unet_mnist_large.yaml", n_steps=150, checkpoin
     model.load_state_dict(checkpoint['model_state_dict'])
     model = model.to(device) 
     model.eval()
-    if config["training"]["loss"] == "flow_matching":
+    if config["training"]["loss_type"] == "flow_matching":
         sample = euler_solve(model=model, N=n_steps, shape=(samples, 1, 28, 28))
     else:
-        sample = one_step_sample(model=model, N=n_steps, shape=(samples, 1, 28, 28))
+        sample = one_step_sample(model=model, shape=(samples, 1, 28, 28))
     sample = sample * 0.3081 + 0.1307
     grid = torchvision.utils.make_grid(sample)
     torchvision.utils.save_image(grid.cpu(), fp=f"sample_images/{config_stem}_{n_steps}_steps.png", )

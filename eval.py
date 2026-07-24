@@ -110,6 +110,6 @@ if __name__ == "__main__":
     parser.add_argument("--config_path", type=str, default="configs/unet_mnist_large.yaml")
     parser.add_argument("--checkpoint_path", type=str, default="checkpoints/unet_mnist_large_epoch_34.pt")
     args = parser.parse_args()
-    res_map = eval(config_path=args.config_path, checkpoint_path=args.checkpoint_path, step_counts=[1, 2, 4, 8, 16, 32, 64], batchsize=256, samples=2048)
+    res_map = eval(config_path=args.config_path, checkpoint_path=args.checkpoint_path, step_counts=[16, 24, 32], batchsize=256, samples=4096)
     for key in res_map:
         print(f"The FID for {key} steps is: {res_map[key]}")

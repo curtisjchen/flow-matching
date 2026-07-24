@@ -1,0 +1,16 @@
+model:
+  down_in_1: 1
+  down_in_2: 64
+  down_out_1: 64
+  down_out_2: 256
+  prefinal: 32
+  time_in: 128
+  time_out: 256
+  type: unet
+training:
+  batch_size: 32
+  epochs: 100
+  learning_rate: 1.0e-6
+  min_lr: 1.0e-6
+  warmup_epochs: 0
+  loss_type: mean_flow

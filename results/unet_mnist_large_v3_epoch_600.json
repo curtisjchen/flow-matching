@@ -1,0 +1,36 @@
+{
+  "checkpoint_path": ".\\checkpoints\\unet_mnist_large_v3_epoch_600.pt",
+  "config_path": ".\\configs\\unet_mnist_large.yaml",
+  "config": {
+    "training": {
+      "epochs": 100,
+      "loss_type": "flow_matching",
+      "batch_size": 128,
+      "learning_rate": 0.001,
+      "warmup_epochs": 5,
+      "min_lr": 1e-05
+    },
+    "model": {
+      "type": "unet",
+      "down_in_1": 1,
+      "down_out_1": 64,
+      "down_in_2": 64,
+      "down_out_2": 256,
+      "prefinal": 32,
+      "time_in": 128,
+      "time_out": 256
+    }
+  },
+  "step_counts": [
+    16,
+    24,
+    32
+  ],
+  "samples": 4096,
+  "fid": {
+    "16": 10.720252990722656,
+    "24": 9.461952209472656,
+    "32": 7.838881015777588
+  },
+  "timestamp": "2026-07-22T19:20:23.615753"
+}
