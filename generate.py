@@ -20,15 +20,16 @@ def generate(config_path="configs/unet_mnist_large.yaml", n_steps=150, checkpoin
                 down_out_2=config["model"]["down_out_2"],
                 prefinal=config["model"]["prefinal"])
     
+    c, w, h = config["model"]["c"], config["model"]["w"], config["model"]["h"]
     os.makedirs("sample_images", exist_ok=True)
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint['model_state_dict'])
     model = model.to(device) 
     model.eval()
     if config["training"]["loss_type"] == "flow_matching":
-        sample = euler_solve(model=model, N=n_steps, shape=(samples, 1, 28, 28))
+        sample = euler_solve(model=model, N=n_steps, shape=(samples, c, w, h))
     else:
-        sample = one_step_sample(model=model, shape=(samples, 1, 28, 28))
+        sample = one_step_sample(model=model, shape=(samples, c, w, h))
     sample = sample * 0.3081 + 0.1307
     grid = torchvision.utils.make_grid(sample)
     torchvision.utils.save_image(grid.cpu(), fp=f"sample_images/{config_stem}_{n_steps}_steps.png", )

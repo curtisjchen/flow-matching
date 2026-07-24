@@ -4,7 +4,13 @@ from torch.utils.data import DataLoader
 
 def get_dataloader(batch_size, train): 
     dataset = MNIST(root="./data", train=train, download=True, transform=Compose([ToTensor(), Normalize((0.1307,), (0.3081,))]))
-    return DataLoader(dataset=dataset, batch_size=batch_size, shuffle=train)
+    return DataLoader(
+        dataset=dataset, 
+        batch_size=batch_size, 
+        shuffle=train,
+        num_workers=8,      
+        persistent_workers=True 
+    )
 
 if __name__ == "__main__":
     data = get_dataloader(32, True)

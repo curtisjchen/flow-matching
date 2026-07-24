@@ -18,7 +18,6 @@ def euler_solve(model, N, shape):
 
 def one_step_sample(model, shape, device=None):
     device = device or next(model.parameters()).device
-    model.eval()
     with torch.inference_mode():
         x_0 = torch.randn(shape, device=device)
         r = torch.zeros(shape[0], device=device)

@@ -28,10 +28,14 @@ def mean_flow_loss(model, x_1, p_rt=0.75):
     tangents = (v, torch.ones_like(r), torch.zeros_like(t))
     u, du_dr = torch.func.jvp(f, primals, tangents)
 
+    # 1. Clamp the derivative to prevent exploding targets
+    du_dr = torch.clamp(du_dr, min=-10.0, max=10.0)
+
     t_minus_r = (t - r).reshape(-1, 1, 1, 1)
     u_target = v + t_minus_r * du_dr
 
-    return F.mse_loss(u, u_target.detach())
+    # 2. Use Smooth L1 (Huber) loss instead of MSE to resist massive outliers
+    return F.smooth_l1_loss(u, u_target.detach())
 
 if __name__ == "__main__":
     from models.unet import UNet

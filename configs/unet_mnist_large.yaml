@@ -15,3 +15,6 @@ model:
   prefinal: 32
   time_in: 128
   time_out: 256
+  c: 1
+  w: 28
+  h: 28

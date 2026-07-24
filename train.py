@@ -12,6 +12,8 @@ import time
 import torchvision
 from solver import euler_solve, one_step_sample
 
+torch.set_num_threads(os.cpu_count())
+
 def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_scheduler=False):
     os.makedirs("sample_images", exist_ok=True)
     with open(config_path, "r") as f:
@@ -87,6 +89,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         batch = 0
         for images, _ in data:
             images = images.to(device)
+            _, c, h, w = images.shape
             optimizer.zero_grad()
             if loss_type == "mean_flow":
                 loss = mean_flow_loss(model, images)
@@ -104,7 +107,9 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         current_lr = optimizer.param_groups[0]['lr']
         elapsed = time.time() - start
         print(f"Epoch {epoch+1}/{epochs} | LR: {current_lr:.6f}| Avg Loss: {avg_epoch_loss:.5f} | Time Taken: {elapsed//60:.0f}m {elapsed%60:.0f}s")
-        save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
+        if (epoch + 1) % 10 == 0:
+            save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
+            print(f"Epoch {epoch+1} Checkpoint Saved!")
         scheduler.step() 
         if (epoch + 1) % 10 == 0:
             model.eval()

@@ -29,6 +29,8 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
     
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint["model_state_dict"])
+    num_params = sum(p.numel() for p in model.parameters())
+    print(f"Parameters: {num_params:,}")
     model = model.to(device)
     model.eval()
     dataloader = get_dataloader(batch_size=batchsize, train=False)
@@ -89,6 +91,7 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
         "checkpoint_path": checkpoint_path,
         "config_path": config_path,
         "config": config,
+        "n_params": num_params,
         "step_counts": step_counts,
         "samples": samples,
         "fid": {str(k): float(v) for k, v in res_map.items()},
@@ -110,6 +113,6 @@ if __name__ == "__main__":
     parser.add_argument("--config_path", type=str, default="configs/unet_mnist_large.yaml")
     parser.add_argument("--checkpoint_path", type=str, default="checkpoints/unet_mnist_large_epoch_34.pt")
     args = parser.parse_args()
-    res_map = eval(config_path=args.config_path, checkpoint_path=args.checkpoint_path, step_counts=[16, 24, 32], batchsize=256, samples=4096)
+    res_map = eval(config_path=args.config_path, checkpoint_path=args.checkpoint_path, step_counts=[1], batchsize=256, samples=4096)
     for key in res_map:
         print(f"The FID for {key} steps is: {res_map[key]}")

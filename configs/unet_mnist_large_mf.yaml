@@ -7,10 +7,14 @@ model:
   time_in: 128
   time_out: 256
   type: unet
+  c: 1
+  w: 28
+  h: 28
+
 training:
-  batch_size: 32
-  epochs: 100
-  learning_rate: 1.0e-6
+  batch_size: 128
+  epochs: 200
+  learning_rate: 1.0e-4
   min_lr: 1.0e-6
   warmup_epochs: 0
   loss_type: mean_flow
