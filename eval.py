@@ -106,7 +106,9 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
     return res_map
 
 def denormalize(images):
-    return images * 0.3081 + 0.1307
+    raw = images * 0.3081 + 0.1307
+    print(f"pre-clamp range: [{raw.min():.3f}, {raw.max():.3f}]")
+    return raw.clamp(0.0, 1.0)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
