@@ -12,8 +12,6 @@ import time
 import torchvision
 from solver import euler_solve, one_step_sample
 
-torch.set_num_threads(os.cpu_count())
-
 def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_scheduler=False, save_all=True):
     os.makedirs("sample_images", exist_ok=True)
     with open(config_path, "r") as f:

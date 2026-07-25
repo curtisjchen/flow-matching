@@ -7,9 +7,7 @@ def get_dataloader(batch_size, train):
     return DataLoader(
         dataset=dataset, 
         batch_size=batch_size, 
-        shuffle=train,
-        num_workers=8,      
-        persistent_workers=True 
+        shuffle=train
     )
 
 if __name__ == "__main__":
