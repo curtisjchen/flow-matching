@@ -72,7 +72,8 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
             gen_time = time.time() - t1
             t2 = time.time()
             res_map[steps] = fid.compute()
-            print(f"Steps={steps} Gen time: {gen_time:.1f}s | FID compute time: {time.time()-t2:.1f}s")
+            fid_compute_time = time.time()-t2
+            print(f"Steps={steps} Gen time: {gen_time:.1f}s | FID compute time: {fid_compute_time:.1f}s")
             fid.reset()
     else:
         t1 = time.time()
@@ -84,8 +85,10 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
         gen_time = time.time() - t1
         t2 = time.time()
         res_map[1] = fid.compute()  # mean flow's one-step result, keyed under NFE=1 for fair comparison against FM's step=1
-        print(f"one_step_sample Gen time: {gen_time:.1f}s | FID compute time: {time.time()-t2:.1f}s")
+        fid_compute_time = time.time()-t2
+        print(f"one_step_sample Gen time: {gen_time:.1f}s | FID compute time: {fid_compute_time:.1f}s")
         fid.reset()
+
 
     results = {
         "checkpoint_path": checkpoint_path,
@@ -96,6 +99,8 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
         "samples": samples,
         "fid": {str(k): float(v) for k, v in res_map.items()},
         "timestamp": datetime.now().isoformat(),
+        "sample_gen_time" : gen_time,
+        "fid_compute_time" : fid_compute_time
     }
 
     os.makedirs("results", exist_ok=True)
@@ -105,9 +110,10 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
 
     return res_map
 
-def denormalize(images):
+def denormalize(images, verbose=False):
     raw = images * 0.3081 + 0.1307
-    print(f"pre-clamp range: [{raw.min():.3f}, {raw.max():.3f}]")
+    if verbose:
+        print(f"pre-clamp range: [{raw.min():.3f}, {raw.max():.3f}]")
     return raw.clamp(0.0, 1.0)
 
 if __name__ == "__main__":
@@ -115,6 +121,6 @@ if __name__ == "__main__":
     parser.add_argument("--config_path", type=str, default="configs/unet_mnist_large.yaml")
     parser.add_argument("--checkpoint_path", type=str, default="checkpoints/unet_mnist_large_epoch_34.pt")
     args = parser.parse_args()
-    res_map = eval(config_path=args.config_path, checkpoint_path=args.checkpoint_path, step_counts=[1], batchsize=256, samples=1024)
+    res_map = eval(config_path=args.config_path, checkpoint_path=args.checkpoint_path, step_counts=[32], batchsize=256, samples=1024)
     for key in res_map:
         print(f"The FID for {key} steps is: {res_map[key]}")
