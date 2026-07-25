@@ -29,7 +29,7 @@ def mean_flow_loss(model, x_1, p_rt=0.5):
     u, du_dr = torch.func.jvp(f, primals, tangents)
 
     # 1. Clamp the derivative to prevent exploding targets
-    du_dr = torch.clamp(du_dr, min=-10.0, max=10.0)
+    du_dr = torch.clamp(du_dr, min=-20.0, max=20.0)
 
     t_minus_r = (t - r).reshape(-1, 1, 1, 1)
     u_target = v + t_minus_r * du_dr

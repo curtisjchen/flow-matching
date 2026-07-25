@@ -14,7 +14,7 @@ model:
 training:
   batch_size: 256
   epochs: 400
-  learning_rate: 1.0e-3
+  learning_rate: 1.0e-4
   min_lr: 1.0e-6
   warmup_epochs: 0
   loss_type: mean_flow
