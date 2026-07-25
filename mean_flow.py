@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-def mean_flow_loss(model, x_1, p_rt=0.75):
+def mean_flow_loss(model, x_1, p_rt=0.5):
     device = x_1.device
     b = x_1.shape[0]
 
@@ -34,7 +34,6 @@ def mean_flow_loss(model, x_1, p_rt=0.75):
     t_minus_r = (t - r).reshape(-1, 1, 1, 1)
     u_target = v + t_minus_r * du_dr
 
-    # 2. Use Smooth L1 (Huber) loss instead of MSE to resist massive outliers
     return F.smooth_l1_loss(u, u_target.detach())
 
 if __name__ == "__main__":
