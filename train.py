@@ -14,7 +14,7 @@ from solver import euler_solve, one_step_sample
 
 torch.set_num_threads(os.cpu_count())
 
-def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_scheduler=False):
+def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_scheduler=False, save_all=True):
     os.makedirs("sample_images", exist_ok=True)
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
@@ -107,7 +107,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         current_lr = optimizer.param_groups[0]['lr']
         elapsed = time.time() - start
         print(f"Epoch {epoch+1}/{epochs} | LR: {current_lr:.6f}| Avg Loss: {avg_epoch_loss:.5f} | Time Taken: {elapsed//60:.0f}m {elapsed%60:.0f}s")
-        if (epoch + 1) % 10 == 0:
+        if (epoch + 1) % 5 == 0 and save_all:
             save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
             print(f"Epoch {epoch+1} Checkpoint Saved!")
         scheduler.step() 
@@ -122,6 +122,8 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             grid = torchvision.utils.make_grid(sample.cpu())
             torchvision.utils.save_image(grid, f"sample_images/{config_stem}_epoch_{epoch+1}.png")
             model.train()
+    if not save_all:
+        save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
     return epoch_loss_list
             
 

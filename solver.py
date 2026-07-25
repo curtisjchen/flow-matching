@@ -4,7 +4,6 @@ def euler_solve(model, N, shape):
         raise ValueError("N must be at least 1.")
 
     device = next(model.parameters()).device
-
     with torch.inference_mode():
         sample = torch.randn(shape, device=device)
         dt = 1.0 / N
