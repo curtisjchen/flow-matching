@@ -1,8 +1,9 @@
 training:
-  epochs: 150
-  batch_size: 128
+  epochs: 200
+  loss_type: flow_matching
+  batch_size: 256
   learning_rate: 0.0001
-  warmup_epochs: 5
+  warmup_epochs: 0
   min_lr: 0.00001
 
 model:
@@ -10,7 +11,7 @@ model:
   hidden_dim: 192
   num_heads: 8
   num_layers: 12
-  patch_size: 4
+  patch_size: 2
   in_channels: 1
   image_size: 28
   c: 1
