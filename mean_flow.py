@@ -36,6 +36,39 @@ def mean_flow_loss(model, x_1, p_rt=0.5):
 
     return F.smooth_l1_loss(u, u_target.detach())
 
+def imf_loss(model, x_1, p_rt=0.5):
+    device = x_1.device
+    b = x_1.shape[0]
+ 
+    x_0 = torch.randn_like(x_1)
+ 
+    a = torch.rand(b, device=device)
+    c = torch.rand(b, device=device)
+    t = torch.maximum(a, c)
+    r = torch.minimum(a, c)
+ 
+    force_eq = torch.rand(b, device=device) < p_rt
+    r = torch.where(force_eq, t, r)
+ 
+    r_ = r.reshape(-1, 1, 1, 1)
+    z_r = (1 - r_) * x_0 + r_ * x_1
+    v_star = x_1 - x_0
+ 
+    v_theta = model(z_r, r, r)
+ 
+    def f(z, r_arg, t_arg):
+        return model(z, r_arg, t_arg)
+ 
+    primals  = (z_r, r, t)
+    tangents = (v_theta, torch.ones_like(r), torch.zeros_like(t))
+    model_output, du_dr = torch.func.jvp(f, primals, tangents)
+ 
+    du_dr = torch.clamp(du_dr, min=-20.0, max=20.0)
+    t_minus_r = (t - r).reshape(-1, 1, 1, 1)
+    V_theta = model_output + t_minus_r * du_dr.detach()
+ 
+    return F.smooth_l1_loss(V_theta, v_star)
+
 if __name__ == "__main__":
     from models.unet import UNet
 
@@ -43,5 +76,6 @@ if __name__ == "__main__":
                  prefinal=32, time_in=128, time_out=256)
     x_1 = torch.randn(4, 1, 28, 28)
 
-    loss = mean_flow_loss(model, x_1)
-    print(loss)
+    loss1 = mean_flow_loss(model, x_1)
+    loss2 = imf_loss(model, x_1)
+    print(loss1, loss2)

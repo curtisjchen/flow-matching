@@ -85,7 +85,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         start = time.time()
         epoch_loss = 0
         batch = 0
-        for images, _ in data:
+        for images, labels in data:
             images = images.to(device)
             _, c, h, w = images.shape
             optimizer.zero_grad()
