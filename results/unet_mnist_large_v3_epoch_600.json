@@ -1,14 +1,14 @@
 {
-  "checkpoint_path": ".\\checkpoints\\unet_mnist_large_v3_epoch_600.pt",
-  "config_path": ".\\configs\\unet_mnist_large.yaml",
+  "checkpoint_path": "checkpoints/unet_mnist_large_v3_epoch_600.pt",
+  "config_path": ".\\configs\\unet_mnist_large_v3.yaml",
   "config": {
     "training": {
-      "epochs": 100,
+      "epochs": 600,
       "loss_type": "flow_matching",
-      "batch_size": 128,
-      "learning_rate": 0.001,
-      "warmup_epochs": 5,
-      "min_lr": 1e-05
+      "batch_size": 256,
+      "learning_rate": 2e-05,
+      "warmup_epochs": 0,
+      "min_lr": 1e-06
     },
     "model": {
       "type": "unet",
@@ -26,13 +26,30 @@
   },
   "n_params": 3267585,
   "step_counts": [
-    32
+    16,
+    32,
+    64
   ],
-  "samples": 1024,
+  "samples": 16384,
   "fid": {
-    "32": 10.59363079071045
+    "16": 5.9483232498168945,
+    "32": 4.321341514587402,
+    "64": 3.745227336883545
   },
-  "timestamp": "2026-07-24T22:20:12.866078",
-  "sample_gen_time": 127.935476064682,
-  "fid_compute_time": 2.6503701210021973
+  "timestamp": "2026-07-27T19:40:20.177164",
+  "sample_gen_time": {
+    "16": 827.1746835708618,
+    "32": 1289.3185076713562,
+    "64": 2540.755772829056
+  },
+  "fid_update_time": {
+    "16": 958.4439477920532,
+    "32": 808.6241245269775,
+    "64": 795.2242298126221
+  },
+  "fid_compute_time": {
+    "16": 2.487614870071411,
+    "32": 2.6740875244140625,
+    "64": 2.526691198348999
+  }
 }

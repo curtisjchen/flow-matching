@@ -1,6 +1,6 @@
 import torch, torchvision
 from models.unet import UNet
-from solver import euler_solve, one_step_sample
+from solver import euler_solve, mean_flow_multistep_sample
 import os
 import yaml
 import argparse
@@ -29,7 +29,7 @@ def generate(config_path="configs/unet_mnist_large.yaml", n_steps=150, checkpoin
     if config["training"]["loss_type"] == "flow_matching":
         sample = euler_solve(model=model, N=n_steps, shape=(samples, c, w, h))
     else:
-        sample = one_step_sample(model=model, shape=(samples, c, w, h))
+        sample = mean_flow_multistep_sample(model=model, N=n_steps, shape=(samples, c, w, h))
     sample = sample * 0.3081 + 0.1307
     grid = torchvision.utils.make_grid(sample)
     torchvision.utils.save_image(grid.cpu(), fp=f"sample_images/{config_stem}_{n_steps}_steps.png", )
@@ -39,6 +39,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_path", type=str, default="configs/unet_mnist_large.yaml")
     parser.add_argument("--checkpoint_path", type=str, default="checkpoints/unet_mnist_large_epoch_34.pt")
+    parser.add_argument("--steps_array", type=int, nargs="+", default=[4, 16, 32])
+    parser.add_argument("--samples", type=int, default=16)
     args = parser.parse_args()
-    for n_steps in [5, 25, 150]:
-        generate(config_path=args.config_path, n_steps=n_steps, checkpoint_path=args.checkpoint_path, samples=16)
+    for n_steps in args.steps_array:
+        generate(config_path=args.config_path, n_steps=n_steps, checkpoint_path=args.checkpoint_path, samples=args.samples)

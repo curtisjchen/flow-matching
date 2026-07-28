@@ -3,7 +3,7 @@ from models.unet import UNet
 from generate import generate
 from data import get_dataloader
 from torchmetrics.image.fid import FrechetInceptionDistance
-from solver import euler_solve, one_step_sample
+from solver import euler_solve, one_step_sample, mean_flow_multistep_sample
 import argparse
 import yaml
 from pathlib import Path
@@ -36,6 +36,9 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
     dataloader = get_dataloader(batch_size=batchsize, train=False)
     c, w, h = dataloader.dataset[0][0].shape
     res_map = {}
+    gen_time_map = {}
+    fid_update_time_map = {}
+    fid_compute_time_map = {}
 
     fid = FrechetInceptionDistance(feature=2048, normalize=True, input_img_size=(3, w, h), reset_real_features=False)
     fid = fid.to(device)
@@ -63,33 +66,50 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
     
     if config["training"]["loss_type"] == "flow_matching":
         for steps in step_counts:
-            t1 = time.time()
+            gen_time = 0.0
+            fid_update_time = 0.0
             for _ in range(samples // batchsize):
+                t_gen = time.time()
                 sample = euler_solve(model=model, N=steps, shape=(batchsize, c, w, h))
+                gen_time += time.time() - t_gen
                 sample = denormalize(sample)
                 sample = sample.expand(-1, 3, -1, -1)
+                t_upd = time.time()
                 fid.update(sample, real=False)
-            gen_time = time.time() - t1
+                fid_update_time += time.time() - t_upd
             t2 = time.time()
             res_map[steps] = fid.compute()
-            fid_compute_time = time.time()-t2
-            print(f"Steps={steps} Gen time: {gen_time:.1f}s | FID compute time: {fid_compute_time:.1f}s")
+            fid_compute_time = time.time() - t2
+            gen_time_map[steps] = gen_time
+            fid_update_time_map[steps] = fid_update_time
+            fid_compute_time_map[steps] = fid_compute_time
+            print(f"Steps={steps} Gen time: {gen_time:.1f}s | FID update (Inception) time: {fid_update_time:.1f}s | FID compute time: {fid_compute_time:.1f}s")
             fid.reset()
     else:
-        t1 = time.time()
-        for _ in range(samples // batchsize):
-            sample = one_step_sample(model=model, shape=(batchsize, c, w, h))
-            sample = denormalize(sample)
-            sample = sample.expand(-1, 3, -1, -1)
-            fid.update(sample, real=False)
-        gen_time = time.time() - t1
-        t2 = time.time()
-        res_map[1] = fid.compute()  # mean flow's one-step result, keyed under NFE=1 for fair comparison against FM's step=1
-        fid_compute_time = time.time()-t2
-        print(f"one_step_sample Gen time: {gen_time:.1f}s | FID compute time: {fid_compute_time:.1f}s")
-        fid.reset()
-
-
+        for steps in step_counts:
+            gen_time = 0.0
+            fid_update_time = 0.0
+            for _ in range(samples // batchsize):
+                t_gen = time.time()
+                if steps == 1:
+                    sample = one_step_sample(model=model, shape=(batchsize, c, w, h))
+                else:
+                    sample = mean_flow_multistep_sample(model=model, N=steps, shape=(batchsize, c, w, h))
+                gen_time += time.time() - t_gen
+                sample = denormalize(sample)
+                sample = sample.expand(-1, 3, -1, -1)
+                t_upd = time.time()
+                fid.update(sample, real=False)
+                fid_update_time += time.time() - t_upd
+            t2 = time.time()
+            res_map[steps] = fid.compute()
+            fid_compute_time = time.time() - t2
+            gen_time_map[steps] = gen_time
+            fid_update_time_map[steps] = fid_update_time
+            fid_compute_time_map[steps] = fid_compute_time
+            print(f"Steps={steps} Gen time: {gen_time:.1f}s | FID update (Inception) time: {fid_update_time:.1f}s | FID compute time: {fid_compute_time:.1f}s")
+            fid.reset()
+ 
     results = {
         "checkpoint_path": checkpoint_path,
         "config_path": config_path,
@@ -99,9 +119,11 @@ def eval(config_path="configs/unet_mnist_large.yaml", checkpoint_path="checkpoin
         "samples": samples,
         "fid": {str(k): float(v) for k, v in res_map.items()},
         "timestamp": datetime.now().isoformat(),
-        "sample_gen_time" : gen_time,
-        "fid_compute_time" : fid_compute_time
+        "sample_gen_time": {str(k): v for k, v in gen_time_map.items()},
+        "fid_update_time": {str(k): v for k, v in fid_update_time_map.items()},
+        "fid_compute_time": {str(k): v for k, v in fid_compute_time_map.items()},
     }
+
 
     os.makedirs("results", exist_ok=True)
     checkpoint_stem = Path(checkpoint_path).stem
@@ -120,7 +142,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_path", type=str, default="configs/unet_mnist_large.yaml")
     parser.add_argument("--checkpoint_path", type=str, default="checkpoints/unet_mnist_large_epoch_34.pt")
+    parser.add_argument("--samples", type=int, default=1024)
+    parser.add_argument("--steps_array", type=int, nargs="+", default=[16, 32])
     args = parser.parse_args()
-    res_map = eval(config_path=args.config_path, checkpoint_path=args.checkpoint_path, step_counts=[32], batchsize=256, samples=1024)
+    res_map = eval(config_path=args.config_path, checkpoint_path=args.checkpoint_path, step_counts=args.steps_array, batchsize=256, samples=args.samples)
     for key in res_map:
         print(f"The FID for {key} steps is: {res_map[key]}")
