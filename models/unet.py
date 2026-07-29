@@ -2,7 +2,7 @@ from typing import Any
 
 import torch.nn as nn
 import torch
-from modules import TimeEmbedding
+from modules import TimeEmbedding, ClassEmbedding, WEmbedding
 
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, time_emb_dim):
@@ -46,7 +46,8 @@ class UNet(nn.Module):
                  down_out_2=64,
                  prefinal=16,
                  time_in=128,
-                 time_out=256
+                 time_out=256,
+                 use_cfg=False
                  ):
         super().__init__()
         self.down1 = ConvBlock(in_channels=down_in_1, 
@@ -75,6 +76,10 @@ class UNet(nn.Module):
         self.time_emb = TimeEmbedding(time_in, time_out)
         self.downsample1 = nn.Conv2d(in_channels=down_out_1, out_channels=down_out_1, kernel_size=3, padding=1, stride=2)
         self.downsample2 = nn.Conv2d(in_channels=down_out_2, out_channels=down_out_2, kernel_size=3, padding=1, stride=2)
+        self.use_cfg = use_cfg
+        if self.use_cfg:
+            self.class_emb = ClassEmbedding()
+            self.w_emb = WEmbedding()
     
     def forward(self, image, r: torch.Tensor, t: torch.Tensor):
         stack = []
