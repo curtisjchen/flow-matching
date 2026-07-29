@@ -20,7 +20,8 @@ def generate(config_path="configs/unet_mnist_large.yaml", n_steps=150, checkpoin
                     num_layers=config["model"]["num_layers"],
                     patch_size=config["model"]["patch_size"],
                     in_channels=config["model"]["in_channels"],
-                    image_size=config["model"]["image_size"])
+                    image_size=config["model"]["image_size"],
+                    num_classes=config["model"]["num_classes"])
     elif config["model"]["type"] == "unet":
         model = UNet(time_in=config["model"]["time_in"],
                     time_out=config["model"]["time_out"],
@@ -28,7 +29,8 @@ def generate(config_path="configs/unet_mnist_large.yaml", n_steps=150, checkpoin
                     down_in_2=config["model"]["down_in_2"],
                     down_out_1=config["model"]["down_out_1"],
                     down_out_2=config["model"]["down_out_2"],
-                    prefinal=config["model"]["prefinal"])
+                    prefinal=config["model"]["prefinal"],
+                    num_classes=config["model"]["num_classes"])
     else:
         print("model config not found")
         return
