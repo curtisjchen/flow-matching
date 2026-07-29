@@ -27,3 +27,11 @@ class TimeEmbedding(nn.Module):
         emb_joint = torch.cat([emb_r, emb_t], dim=-1)
 
         return self.proj2(self.silu(self.proj1(emb_joint)))
+
+class ClassEmbedding(nn.Module):
+    def __init__(self, num_classes, embedding_dim):
+        self.num_classes = num_classes
+        self.embedding = nn.Embedding(num_classes + 1, embedding_dim=embedding_dim)
+    
+    def forward(self, label):
+         
