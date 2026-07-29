@@ -38,8 +38,9 @@ class ClassEmbedding(nn.Module):
          return self.embedding(label)
 
 class WEmbedding(nn.Module):
-    def __init__(self, d_in, d_out, w_max = 5.0):
+    def __init__(self, d_in, d_out, w_min = 1.0, w_max = 5.0):
         super().__init__()
+        self.w_min = w_min
         self.w_max = w_max
         self.d_in = d_in
         self.proj1 = nn.Linear(d_in, d_out)
@@ -47,7 +48,7 @@ class WEmbedding(nn.Module):
         self.proj2 = nn.Linear(d_out, d_out)
 
     def forward(self, w: torch.Tensor) -> torch.Tensor:
-        w_norm = w / self.w_max
+        w_norm = (w - self.w_min) / (self.w_max - self.w_min)
         return self.proj2(self.silu(self.proj1(sinusoidal_embed(w_norm, self.d_in))))
 
 

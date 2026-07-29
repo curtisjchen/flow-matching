@@ -1,0 +1,25 @@
+training:
+  epochs: 30
+  loss_type: mean_flow
+  batch_size: 32
+  learning_rate: 1.0e-5
+  min_lr: 1.0e-6
+  warmup_epochs: 0
+
+
+model:
+  type: unet
+  down_in_1: 1
+  down_out_1: 32
+  down_in_2: 32
+  down_out_2: 64
+  prefinal: 16
+  time_in: 128
+  time_out: 256
+  c: 1
+  w: 28
+  h: 28
+  w_min: 1.0
+  w_max: 5.0
+  p_uncond: 0.1
+  num_classes: 10

@@ -39,7 +39,9 @@ class UpBlock(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, 
+    def __init__(self,
+                 w_min=1.0,
+                 w_max=5.0,
                  down_in_1=1, 
                  down_out_1=32, 
                  down_in_2=32, 
@@ -47,7 +49,7 @@ class UNet(nn.Module):
                  prefinal=16,
                  time_in=128,
                  time_out=256,
-                 use_cfg=False
+                 num_classes=0
                  ):
         super().__init__()
         self.down1 = ConvBlock(in_channels=down_in_1, 
@@ -76,31 +78,34 @@ class UNet(nn.Module):
         self.time_emb = TimeEmbedding(time_in, time_out)
         self.downsample1 = nn.Conv2d(in_channels=down_out_1, out_channels=down_out_1, kernel_size=3, padding=1, stride=2)
         self.downsample2 = nn.Conv2d(in_channels=down_out_2, out_channels=down_out_2, kernel_size=3, padding=1, stride=2)
-        self.use_cfg = use_cfg
-        if self.use_cfg:
-            self.class_emb = ClassEmbedding()
-            self.w_emb = WEmbedding()
+        self.null_class_idx = num_classes
+        self.class_emb = ClassEmbedding(num_classes=num_classes, embedding_dim=time_out)
+        self.w_emb = WEmbedding(d_in=time_in, d_out=time_out, w_min=w_min, w_max=w_max)
     
-    def forward(self, image, r: torch.Tensor, t: torch.Tensor):
+    def forward(self, image, r: torch.Tensor, t: torch.Tensor, w=None, class_labels=None):
         stack = []
-        t_emb = self.time_emb(r, t)
-        image = self.down1(image, t_emb)
+        cond = self.time_emb(r, t) + self.w_emb(w) + self.class_emb(class_labels)
+        image = self.down1(image, cond)
         stack.append(image)
         image = self.downsample1(image)
-        image = self.down2(image, t_emb)
+        image = self.down2(image, cond)
         stack.append(image)
         image = self.downsample2(image)
-        image = self.bottleneck(image, t_emb)
-        image = self.up1(image, stack.pop(), t_emb)
-        image = self.up2(image, stack.pop(), t_emb)
+        image = self.bottleneck(image, cond)
+        image = self.up1(image, stack.pop(), cond)
+        image = self.up2(image, stack.pop(), cond)
         image = self.final(image)
         return image
 
 if __name__ == "__main__":
-    model = UNet()
+    model = UNet(num_classes=10)
     x = torch.randn(4, 1, 28, 28)
+    r = torch.zeros(4)
     t = torch.rand(4)
-    out = model(x, t)
+    w = torch.tensor([1.0, 2.0, 3.0, 4.0])
+    labels = torch.tensor([0, 1, 2, model.null_class_idx])
+    
+    out = model(x, r, t, w, labels)
     print(out.shape)
 
 

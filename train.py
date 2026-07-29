@@ -2,7 +2,7 @@ from models.unet import UNet
 from models.dit import DiT
 from data import get_dataloader
 from flow import flow_matching_loss
-from mean_flow import mean_flow_loss
+from mean_flow import mean_flow_loss, imf_loss
 import torch
 import os
 import yaml
@@ -10,7 +10,7 @@ import argparse
 from pathlib import Path
 import time
 import torchvision
-from solver import euler_solve, one_step_sample
+from solver import euler_solve, mean_flow_multistep_sample
 
 def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_scheduler=False, save_all=True):
     os.makedirs("sample_images", exist_ok=True)
@@ -24,6 +24,8 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
     data = get_dataloader(batch_size=config["training"]["batch_size"], train=True)
     loss_type = config["training"].get("loss_type", "flow_matching")
     print(f"Using loss: {loss_type}")
+    num_classes = config["model"]["num_classes"]
+    print(f"Number of Classes: {num_classes}")
     if config["model"]["type"] == "dit":
         model = DiT(hidden_dim=config["model"]["hidden_dim"],
                     num_heads=config["model"]["num_heads"],
@@ -87,12 +89,36 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         batch = 0
         for images, labels in data:
             images = images.to(device)
+            labels = labels.to(device)
             _, c, h, w = images.shape
             optimizer.zero_grad()
             if loss_type == "mean_flow":
-                loss = mean_flow_loss(model, images)
+                loss = mean_flow_loss(
+                    model=model, 
+                    x_1=images,
+                    labels=labels,
+                    p_uncond=config['model']['p_uncond'], 
+                    w_min=config['model']['w_min'],
+                    w_max=config['model']['w_max']
+                )
+            elif loss_type == "improved_mean_flow":
+                loss = imf_loss(
+                    model=model, 
+                    x_1=images,
+                    labels=labels,
+                    p_uncond=config['model']['p_uncond'], 
+                    w_min=config['model']['w_min'],
+                    w_max=config['model']['w_max']
+                )
             else:
-                loss = flow_matching_loss(model, images)
+                loss = flow_matching_loss(
+                    model=model, 
+                    x_1=images,
+                    labels=labels,
+                    p_uncond=config['model']['p_uncond'], 
+                    w_min=config['model']['w_min'],
+                    w_max=config['model']['w_max']
+                )
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
@@ -112,10 +138,23 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         if (epoch + 1) % 10 == 0:
             model.eval()
             with torch.inference_mode():
-                if loss_type == "mean_flow":
-                    sample = one_step_sample(model=model, shape=(16, c, w, h))
+                gen_labels = torch.arange(20, device=device) % num_classes
+                if config["training"]["loss_type"] == "flow_matching":
+                    sample = euler_solve(
+                        model=model, 
+                        N=32, 
+                        shape=(20, c, h, w), 
+                        labels=gen_labels, 
+                        w_val=3.0, 
+                        null_class_idx=model.null_class_idx)
                 else:
-                    sample = euler_solve(model=model, N=50, shape=(16, c, w, h))
+                    sample = mean_flow_multistep_sample(
+                        model=model, 
+                        N=1, 
+                        shape=(20, c, h, w), 
+                        labels=gen_labels, 
+                        w_val=3.0, 
+                        null_class_idx=model.null_class_idx)
             sample = sample * 0.3081 + 0.1307
             grid = torchvision.utils.make_grid(sample.cpu())
             torchvision.utils.save_image(grid, f"sample_images/{config_stem}_epoch_{epoch+1}.png")

@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from modules import TimeEmbedding
+from modules import TimeEmbedding, WEmbedding, ClassEmbedding
 
 class PatchEmbed(nn.Module):
     def __init__(self, in_channels, patchsize, hidden_dims, image_size):
@@ -51,7 +51,7 @@ class DiTBlock(nn.Module):
         return image
 
 class DiT(nn.Module):
-    def __init__(self, hidden_dim, num_heads, num_layers, patch_size, in_channels, image_size):
+    def __init__(self, hidden_dim, num_heads, num_layers, patch_size, in_channels, image_size, num_classes, w_min=1.0, w_max=5.0):
         super().__init__()
         self.num_layers = num_layers
         self.patchsize = patch_size
@@ -61,26 +61,35 @@ class DiT(nn.Module):
         self.ditblocks = nn.ModuleList(DiTBlock(hidden_dim=hidden_dim, num_heads=num_heads) for _ in range(num_layers))
         self.time_embed = TimeEmbedding(hidden_dim, hidden_dim)
         self.final_layer = nn.Linear(hidden_dim, patch_size * patch_size * in_channels)
+        self.null_class_idx = num_classes
+        self.w_embed = WEmbedding(hidden_dim, hidden_dim)
+        self.class_embed = ClassEmbedding(num_classes, hidden_dim)
 
 
-    def forward(self, image, r:torch.Tensor, t: torch.Tensor):
-        b, c, h, w = image.shape
+    def forward(self, image, r:torch.Tensor, t: torch.Tensor, w, labels):
+        b, c, h, img_w = image.shape
         image = self.patch_embed(image) 
-        time_embed = self.time_embed(r, t)
+        cond = self.time_embed(r, t) + self.w_embed(w) + self.class_embed(labels)
         for block in self.ditblocks:
-            image = block(image, time_embed)
+            image = block(image, cond)
         image = self.final_layer(image)
         image = image.reshape(b, self.grid_size, self.grid_size, self.patchsize, self.patchsize, self.in_channels)
         image = image.permute(0, 5, 1, 3, 2, 4)
-        image = image.reshape(b, c, h, w)
+        image = image.reshape(b, c, h, img_w)
 
         return image
 
 if __name__ == "__main__":
-    model = DiT(hidden_dim=256, num_heads=4, num_layers=6, patch_size=4, in_channels=1, image_size=28)
+    model = DiT(hidden_dim=256, num_heads=4, num_layers=6, patch_size=4, in_channels=1, image_size=28, num_classes=10)
+    
     x = torch.randn(4, 1, 28, 28)
+    r = torch.zeros(4) # Standard flow matching uses r=0
     t = torch.rand(4)
-    out = model(x, t)
+    w = torch.tensor([1.0, 2.0, 3.0, 4.0])
+    labels = torch.tensor([0, 1, 2, model.null_class_idx])
+    
+    # FIX: Pass all required arguments to the forward pass
+    out = model(x, r, t, w, labels) 
     print(out.shape)
 
 
