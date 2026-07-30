@@ -49,8 +49,12 @@ def mean_flow_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=
 
     primals  = (z_r, r, t)
     tangents = (v, torch.ones_like(r), torch.zeros_like(t))
-    u, du_dr = torch.func.jvp(f, primals, tangents)
+    with torch.autocast(device_type="cuda", enabled=False):
+        primals_fp32 = tuple(p.float() for p in primals)
+        tangents_fp32 = tuple(t_.float() for t_ in tangents)
+        u, du_dr = torch.func.jvp(f, primals_fp32, tangents_fp32)
 
+    u = u.float()
     du_dr = torch.nan_to_num(du_dr, nan=0.0, posinf=100.0, neginf=-100.0)
     du_dr = du_dr.detach()
     du_dr_max = du_dr.abs().max().item()
@@ -60,7 +64,7 @@ def mean_flow_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=
     u_target = v + t_minus_r * du_dr
 
     loss = F.smooth_l1_loss(u, u_target.detach())
-    return loss, du_dr_max 
+    return loss, du_dr_max
 
 def imf_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=5.0):    
     device = x_1.device
@@ -107,9 +111,14 @@ def imf_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=5.0):
  
     primals  = (z_r, r, t)
     tangents = (v_theta, torch.ones_like(r), torch.zeros_like(t))
-    with sdpa_kernel(SDPBackend.MATH):
-        model_output, du_dr = torch.func.jvp(f, primals, tangents)
- 
+    with torch.autocast(device_type="cuda", enabled=False):
+        primals_fp32 = tuple(p.float() for p in primals)
+        tangents_fp32 = tuple(t_.float() for t_ in tangents)
+        with sdpa_kernel(SDPBackend.MATH):
+            model_output, du_dr = torch.func.jvp(f, primals_fp32, tangents_fp32)
+
+    model_output = model_output.float()
+
     du_dr = torch.nan_to_num(du_dr, nan=0.0, posinf=100.0, neginf=-100.0)
     du_dr = du_dr.detach()
     du_dr_max = du_dr.abs().max().item()
