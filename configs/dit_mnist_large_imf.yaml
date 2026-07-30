@@ -11,7 +11,7 @@ model:
   hidden_dim: 128
   num_heads: 8
   num_layers: 8
-  patch_size: 2
+  patch_size: 4
   in_channels: 1
   c: 1
   w: 28
