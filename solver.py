@@ -1,5 +1,4 @@
 import torch
-import torch
 
 def euler_solve(model, N, shape, labels, w_val, null_class_idx):
     if N < 1:
@@ -26,7 +25,9 @@ def euler_solve(model, N, shape, labels, w_val, null_class_idx):
             sample_double = torch.cat([sample, sample], dim=0)
             t_double = torch.cat([t_batch, t_batch], dim=0)
             
-            v_double = model(sample_double, t_double, t_double, labels_double, w_double)
+            v_double = model(
+                sample_double, t_double, t_double, w=w_double, class_labels=labels_double
+            )
             
             v_cond, v_uncond = v_double.chunk(2, dim=0)
             
@@ -63,7 +64,9 @@ def mean_flow_multistep_sample(model, N, shape, labels, w_val, null_class_idx):
             r_double = torch.cat([r, r], dim=0)
             t_double = torch.cat([t, t], dim=0)
             
-            v_double = model(sample_double, r_double, t_double, labels_double, w_double)
+            v_double = model(
+                sample_double, r_double, t_double, w=w_double, class_labels=labels_double
+            )
             
             v_cond, v_uncond = v_double.chunk(2, dim=0)
             

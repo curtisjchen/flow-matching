@@ -141,7 +141,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             model.eval()
             with torch.inference_mode():
                 gen_labels = torch.arange(20, device=device) % num_classes
-                if config["training"]["loss_type"] == "flow_matching":
+                if loss_type == "flow_matching":
                     sample = euler_solve(
                         model=model, 
                         N=32, 

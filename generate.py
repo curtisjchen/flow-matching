@@ -37,6 +37,10 @@ def generate(config_path="configs/unet_mnist_large.yaml", n_steps=150, checkpoin
         
     if labels is None:
         labels = torch.full((samples,), model.null_class_idx, dtype=torch.long, device=device)
+    else:
+        labels = labels.to(device=device, dtype=torch.long)
+        if labels.numel() != samples:
+            raise ValueError("labels must contain exactly one label per requested sample.")
 
     c, w, h = config["model"]["c"], config["model"]["w"], config["model"]["h"]
     os.makedirs("sample_images", exist_ok=True)
@@ -50,14 +54,14 @@ def generate(config_path="configs/unet_mnist_large.yaml", n_steps=150, checkpoin
             N=n_steps, 
             shape=(samples, c, w, h), 
             labels=labels, w_val=3.0, 
-            null_class_idx=)
+            null_class_idx=model.null_class_idx)
     else:
         sample = mean_flow_multistep_sample(
             model=model, 
             N=n_steps, 
             shape=(samples, c, w, h), 
             labels=labels, w_val=3.0, 
-            null_class_idx=)
+            null_class_idx=model.null_class_idx)
     sample = sample * 0.3081 + 0.1307
     grid = torchvision.utils.make_grid(sample)
     torchvision.utils.save_image(grid.cpu(), fp=f"sample_images/{config_stem}_{n_steps}_steps.png", )

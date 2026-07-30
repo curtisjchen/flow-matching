@@ -66,10 +66,10 @@ class DiT(nn.Module):
         self.class_embed = ClassEmbedding(num_classes, hidden_dim)
 
 
-    def forward(self, image, r:torch.Tensor, t: torch.Tensor, w, labels):
+    def forward(self, image, r: torch.Tensor, t: torch.Tensor, w, class_labels):
         b, c, h, img_w = image.shape
         image = self.patch_embed(image) 
-        cond = self.time_embed(r, t) + self.w_embed(w) + self.class_embed(labels)
+        cond = self.time_embed(r, t) + self.w_embed(w) + self.class_embed(class_labels)
         for block in self.ditblocks:
             image = block(image, cond)
         image = self.final_layer(image)
