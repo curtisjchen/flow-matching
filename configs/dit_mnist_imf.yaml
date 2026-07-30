@@ -1,6 +1,6 @@
 training:
   epochs: 200
-  loss_type: mean_flow
+  loss_type: improved_mean_flow
   batch_size: 128
   learning_rate: 0.0001
   warmup_epochs: 10
@@ -9,9 +9,9 @@ training:
 model:
   type: dit
   hidden_dim: 128
-  num_heads: 8
+  num_heads: 4
   num_layers: 8
-  patch_size: 4
+  patch_size: 2
   in_channels: 1
   c: 1
   w: 28
