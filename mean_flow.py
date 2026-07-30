@@ -106,7 +106,7 @@ def imf_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=5.0):
     with sdpa_kernel(SDPBackend.MATH):
         model_output, du_dr = torch.func.jvp(f, primals, tangents)
  
-    du_dr = torch.clamp(du_dr, min=-50.0, max=50.0)
+    du_dr = torch.clamp(du_dr, min=-10.0, max=10.0)
     t_minus_r = (t - r).reshape(-1, 1, 1, 1)
     V_theta = model_output + t_minus_r * du_dr.detach()
  
