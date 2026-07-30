@@ -100,7 +100,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
 
             with torch.autocast(device_type="cuda", dtype=torch.float16):
                 if loss_type == "mean_flow":
-                    loss = mean_flow_loss(
+                    loss, du_dr_max = mean_flow_loss(
                         model=model, 
                         x_1=images,
                         labels=labels,
@@ -109,7 +109,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                         w_max=config['model']['w_max']
                     )
                 elif loss_type == "improved_mean_flow":
-                    loss = imf_loss(
+                    loss, du_dr_max = imf_loss(
                         model=model, 
                         x_1=images,
                         labels=labels,
@@ -126,6 +126,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                         w_min=config['model']['w_min'],
                         w_max=config['model']['w_max']
                     )
+                    du_dr_max = None
 
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)  # unscale grads before clipping, or max_norm=1.0 clips scaled (huge) grads
@@ -135,7 +136,8 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
 
             batch += 1
             if (batch + 1) % 100 == 0:
-                print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Loss: {loss:.4f}")
+                du_dr_str = f"{du_dr_max:.2f}" if du_dr_max is not None else "N/A"
+                print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Loss: {loss:.4f} | du_dr max: {du_dr_str}")
             epoch_loss += loss.item()
 
         avg_epoch_loss = epoch_loss / batch

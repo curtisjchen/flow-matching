@@ -51,12 +51,16 @@ def mean_flow_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=
     tangents = (v, torch.ones_like(r), torch.zeros_like(t))
     u, du_dr = torch.func.jvp(f, primals, tangents)
 
-    du_dr = torch.clamp(du_dr, min=-20.0, max=20.0)
+    du_dr = torch.nan_to_num(du_dr, nan=0.0, posinf=100.0, neginf=-100.0)
+    du_dr = du_dr.detach()
+    du_dr_max = du_dr.abs().max().item()
+    du_dr = torch.clamp(du_dr, min=-100.0, max=100.0)
 
     t_minus_r = (t - r).reshape(-1, 1, 1, 1)
     u_target = v + t_minus_r * du_dr
 
-    return F.smooth_l1_loss(u, u_target.detach())
+    loss = F.smooth_l1_loss(u, u_target.detach())
+    return loss, du_dr_max 
 
 def imf_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=5.0):    
     device = x_1.device
@@ -106,11 +110,16 @@ def imf_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=5.0):
     with sdpa_kernel(SDPBackend.MATH):
         model_output, du_dr = torch.func.jvp(f, primals, tangents)
  
-    du_dr = torch.clamp(du_dr, min=-10.0, max=10.0)
+    du_dr = torch.nan_to_num(du_dr, nan=0.0, posinf=100.0, neginf=-100.0)
+    du_dr = du_dr.detach()
+    du_dr_max = du_dr.abs().max().item()
+    du_dr = torch.clamp(du_dr, min=-100.0, max=100.0)
+
     t_minus_r = (t - r).reshape(-1, 1, 1, 1)
-    V_theta = model_output + t_minus_r * du_dr.detach()
- 
-    return F.smooth_l1_loss(V_theta, v_star)
+    V_theta = model_output + t_minus_r * du_dr
+
+    loss = F.smooth_l1_loss(V_theta, v_star, beta = 2.0)
+    return loss, du_dr_max
 
 if __name__ == "__main__":
     from models.unet import UNet
