@@ -85,78 +85,92 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             for _ in range(start_epoch):
                 scheduler.step()
 
+    scaler = torch.amp.GradScaler("cuda")
+
     for epoch in range(start_epoch if resume_from else 0, epochs):
         start = time.time()
         epoch_loss = 0
         batch = 0
+
         for images, labels in data:
             images = images.to(device)
             labels = labels.to(device)
             _, c, h, w = images.shape
             optimizer.zero_grad()
-            if loss_type == "mean_flow":
-                loss = mean_flow_loss(
-                    model=model, 
-                    x_1=images,
-                    labels=labels,
-                    p_uncond=config['model']['p_uncond'], 
-                    w_min=config['model']['w_min'],
-                    w_max=config['model']['w_max']
-                )
-            elif loss_type == "improved_mean_flow":
-                loss = imf_loss(
-                    model=model, 
-                    x_1=images,
-                    labels=labels,
-                    p_uncond=config['model']['p_uncond'], 
-                    w_min=config['model']['w_min'],
-                    w_max=config['model']['w_max']
-                )
-            else:
-                loss = flow_matching_loss(
-                    model=model, 
-                    x_1=images,
-                    labels=labels,
-                    p_uncond=config['model']['p_uncond'], 
-                    w_min=config['model']['w_min'],
-                    w_max=config['model']['w_max']
-                )
-            loss.backward()
+
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                if loss_type == "mean_flow":
+                    loss = mean_flow_loss(
+                        model=model, 
+                        x_1=images,
+                        labels=labels,
+                        p_uncond=config['model']['p_uncond'], 
+                        w_min=config['model']['w_min'],
+                        w_max=config['model']['w_max']
+                    )
+                elif loss_type == "improved_mean_flow":
+                    loss = imf_loss(
+                        model=model, 
+                        x_1=images,
+                        labels=labels,
+                        p_uncond=config['model']['p_uncond'], 
+                        w_min=config['model']['w_min'],
+                        w_max=config['model']['w_max']
+                    )
+                else:
+                    loss = flow_matching_loss(
+                        model=model, 
+                        x_1=images,
+                        labels=labels,
+                        p_uncond=config['model']['p_uncond'], 
+                        w_min=config['model']['w_min'],
+                        w_max=config['model']['w_max']
+                    )
+
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)  # unscale grads before clipping, or max_norm=1.0 clips scaled (huge) grads
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
+
             batch += 1
             if (batch + 1) % 100 == 0:
                 print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Loss: {loss:.4f}")
             epoch_loss += loss.item()
+
         avg_epoch_loss = epoch_loss / batch
         epoch_loss_list.append(avg_epoch_loss)
         current_lr = optimizer.param_groups[0]['lr']
         elapsed = time.time() - start
         print(f"Epoch {epoch+1}/{epochs} | LR: {current_lr:.6f}| Avg Loss: {avg_epoch_loss:.5f} | Time Taken: {elapsed//60:.0f}m {elapsed%60:.0f}s")
+
         if (epoch + 1) % 5 == 0 and save_all:
             save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
             print(f"Epoch {epoch+1} Checkpoint Saved!")
+
         scheduler.step() 
+
         if (epoch + 1) % 10 == 0:
             model.eval()
             with torch.inference_mode():
                 gen_labels = torch.arange(20, device=device) % num_classes
-                if loss_type == "flow_matching":
-                    sample = euler_solve(
-                        model=model, 
-                        N=32, 
-                        shape=(20, c, h, w), 
-                        labels=gen_labels, 
-                        w_val=3.0, 
-                        null_class_idx=model.null_class_idx)
-                else:
-                    sample = mean_flow_multistep_sample(
-                        model=model, 
-                        N=1, 
-                        shape=(20, c, h, w), 
-                        labels=gen_labels, 
-                        w_val=3.0, 
-                        null_class_idx=model.null_class_idx)
+                with torch.autocast(device_type="cuda", dtype=torch.float16):
+                    if loss_type == "flow_matching":
+                        sample = euler_solve(
+                            model=model, 
+                            N=32, 
+                            shape=(20, c, h, w), 
+                            labels=gen_labels, 
+                            w_val=3.0, 
+                            null_class_idx=model.null_class_idx)
+                    else:
+                        sample = mean_flow_multistep_sample(
+                            model=model, 
+                            N=1, 
+                            shape=(20, c, h, w), 
+                            labels=gen_labels, 
+                            w_val=3.0, 
+                            null_class_idx=model.null_class_idx)
             sample = sample * 0.3081 + 0.1307
             grid = torchvision.utils.make_grid(sample.cpu())
             torchvision.utils.save_image(grid, f"sample_images/{config_stem}_epoch_{epoch+1}.png")

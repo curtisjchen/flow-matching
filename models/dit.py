@@ -44,7 +44,7 @@ class DiTBlock(nn.Module):
         gate2 = gate2[:,None,:]
         h = self.ln1(image)
         h = h * (1 + scale1) + shift1
-        image = image + gate1 * self.attention(h, h, h)[0]
+        image = image + gate1 * self.attention(h, h, h, need_weights=False)[0]
         h = self.ln2(image)
         h = h * (1  + scale2) + shift2
         image = image + gate2 * self.down_proj(self.swiglu(self.up_proj(h)))
