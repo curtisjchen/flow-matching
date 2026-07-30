@@ -114,7 +114,6 @@ def imf_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=5.0):
     with torch.autocast(device_type="cuda", enabled=False):
         primals_fp32 = tuple(p.float() for p in primals)
         tangents_fp32 = tuple(t_.float() for t_ in tangents)
-        print(f"[DEBUG] primal dtype: {primals_fp32[0].dtype}, model param dtype: {next(model.parameters()).dtype}")
         with sdpa_kernel(SDPBackend.MATH):
             model_output, du_dr = torch.func.jvp(f, primals_fp32, tangents_fp32)
 
