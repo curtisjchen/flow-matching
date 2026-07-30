@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from modules import TimeEmbedding, WEmbedding, ClassEmbedding
+import torch.nn.functional as F
 
 class PatchEmbed(nn.Module):
     def __init__(self, in_channels, patchsize, hidden_dims, image_size):
