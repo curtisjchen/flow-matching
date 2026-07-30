@@ -1,6 +1,6 @@
 training:
   epochs: 200
-  loss_type: mean_flow
+  loss_type: improved_mean_flow
   batch_size: 256
   learning_rate: 0.0005
   warmup_epochs: 0
@@ -13,7 +13,10 @@ model:
   num_layers: 8
   patch_size: 2
   in_channels: 1
-  image_size: 28
   c: 1
   w: 28
   h: 28
+  w_min: 1.0
+  w_max: 5.0
+  p_uncond: 0.1
+  num_classes: 10
