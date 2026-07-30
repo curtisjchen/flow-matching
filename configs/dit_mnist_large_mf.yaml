@@ -16,6 +16,7 @@ model:
   c: 1
   w: 28
   h: 28
+  image_size: 28
   w_min: 1.0
   w_max: 5.0
   p_uncond: 0.1
