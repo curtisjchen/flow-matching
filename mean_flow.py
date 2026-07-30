@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from torch.nn.attention import sdpa_kernel, SDPBackend
 
 def mean_flow_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=5.0):
     device = x_1.device
@@ -102,7 +103,8 @@ def imf_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=5.0):
  
     primals  = (z_r, r, t)
     tangents = (v_theta, torch.ones_like(r), torch.zeros_like(t))
-    model_output, du_dr = torch.func.jvp(f, primals, tangents)
+    with sdpa_kernel(SDPBackend.MATH):
+        model_output, du_dr = torch.func.jvp(f, primals, tangents)
  
     #du_dr = torch.clamp(du_dr, min=-20.0, max=20.0)
     t_minus_r = (t - r).reshape(-1, 1, 1, 1)
