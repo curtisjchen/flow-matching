@@ -12,6 +12,7 @@ model:
   num_heads: 4
   num_layers: 8
   patch_size: 2
+  dataset: mnist
   in_channels: 1
   c: 1
   w: 28
