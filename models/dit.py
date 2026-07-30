@@ -24,29 +24,52 @@ class PatchEmbed(nn.Module):
 class DiTBlock(nn.Module):
     def __init__(self, hidden_dim, num_heads):
         super().__init__()
+        self.num_heads = num_heads
+        self.head_dim = hidden_dim // num_heads
+
         self.ln1 = nn.LayerNorm(hidden_dim, elementwise_affine=False)
         self.ln2 = nn.LayerNorm(hidden_dim, elementwise_affine=False)
-        self.attention = nn.MultiheadAttention(hidden_dim, num_heads, batch_first=True)
+
+        self.qkv = nn.Linear(hidden_dim, hidden_dim * 3)
+        self.q_norm = nn.RMSNorm(self.head_dim)
+        self.k_norm = nn.RMSNorm(self.head_dim)
+        self.attn_proj = nn.Linear(hidden_dim, hidden_dim)
+
         self.up_proj = nn.Linear(hidden_dim, hidden_dim * 4)
         self.down_proj = nn.Linear(hidden_dim * 4, hidden_dim)
         self.swiglu = nn.SiLU()
+
         self.adaLN = nn.Linear(hidden_dim, hidden_dim * 6)
         nn.init.zeros_(self.adaLN.weight)
         nn.init.zeros_(self.adaLN.bias)
 
+    def attention(self, h):
+        B, N, C = h.shape
+        qkv = self.qkv(h).reshape(B, N, 3, self.num_heads, self.head_dim)
+        q, k, v = qkv.permute(2, 0, 3, 1, 4)  # each: (B, num_heads, N, head_dim)
+
+        q = self.q_norm(q)  # bounds Q magnitude before QK^T
+        k = self.k_norm(k)  # bounds K magnitude before QK^T
+
+        out = F.scaled_dot_product_attention(q, k, v)
+        out = out.transpose(1, 2).reshape(B, N, C)
+        return self.attn_proj(out)
+
     def forward(self, image, t):
         shift1, scale1, gate1, shift2, scale2, gate2 = self.adaLN(t).chunk(6, dim=-1)
-        shift1 = shift1[:,None,:]
-        scale1 = scale1[:,None,:]
-        gate1 = gate1[:,None,:]
-        shift2 = shift2[:,None,:]
-        scale2 = scale2[:,None,:]
-        gate2 = gate2[:,None,:]
+        shift1 = shift1[:, None, :]
+        scale1 = scale1[:, None, :]
+        gate1 = gate1[:, None, :]
+        shift2 = shift2[:, None, :]
+        scale2 = scale2[:, None, :]
+        gate2 = gate2[:, None, :]
+
         h = self.ln1(image)
         h = h * (1 + scale1) + shift1
-        image = image + gate1 * self.attention(h, h, h, need_weights=False)[0]
+        image = image + gate1 * self.attention(h)
+
         h = self.ln2(image)
-        h = h * (1  + scale2) + shift2
+        h = h * (1 + scale2) + shift2
         image = image + gate2 * self.down_proj(self.swiglu(self.up_proj(h)))
         return image
 
