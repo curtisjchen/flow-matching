@@ -1,7 +1,5 @@
 import torch
 import torch.nn.functional as F
-from torch.nn.attention import sdpa_kernel, SDPBackend
-
 
 def _sample_r_t(b, device, p_rt):
     a = torch.rand(b, device=device)
@@ -41,21 +39,8 @@ def _make_cfg_fn(model, train_labels, pure_null_labels, w, w_reshaped):
     return f
 
 
-def _safe_jvp(f, primals, tangents, use_math_kernel=False):
-    """Runs jvp in fp32 regardless of outer autocast, with optional MATH-only SDPA."""
-    with torch.autocast(device_type="cuda", enabled=False):
-        primals_fp32 = tuple(p.float() for p in primals)
-        tangents_fp32 = tuple(t_.float() for t_ in tangents)
-        if use_math_kernel:
-            with sdpa_kernel(SDPBackend.MATH):
-                out, tangent_out = torch.func.jvp(f, primals_fp32, tangents_fp32)
-        else:
-            out, tangent_out = torch.func.jvp(f, primals_fp32, tangents_fp32)
-    return out.float(), tangent_out
-
-
 def _clean_du_dr(du_dr, clamp_val=100.0):
-    #du_dr = torch.nan_to_num(du_dr, nan=0.0, posinf=clamp_val, neginf=-clamp_val)
+    du_dr = torch.nan_to_num(du_dr, nan=0.0, posinf=clamp_val, neginf=-clamp_val)
     du_dr = du_dr.detach()
     du_dr_max = du_dr.abs().max().item()
     du_dr = torch.clamp(du_dr, min=-clamp_val, max=clamp_val)
@@ -85,7 +70,7 @@ def mean_flow_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=
 
     primals = (z_r, r, t)
     tangents = (v, torch.ones_like(r), torch.zeros_like(t))
-    u, du_dr = _safe_jvp(f, primals, tangents)
+    u, du_dr = torch.func.jvp(f, primals, tangents)
 
     du_dr, du_dr_max = _clean_du_dr(du_dr, clamp_val)
 
@@ -115,7 +100,7 @@ def imf_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=5.0, c
 
     primals = (z_r, r, t)
     tangents = (v_theta, torch.ones_like(r), torch.zeros_like(t))
-    model_output, du_dr = _safe_jvp(f, primals, tangents, use_math_kernel=True)
+    model_output, du_dr = torch.func.jvp(f, primals, tangents)
 
     du_dr, du_dr_max = _clean_du_dr(du_dr, clamp_val)
 
