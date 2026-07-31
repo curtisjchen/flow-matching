@@ -55,12 +55,18 @@ def _safe_jvp(f, primals, tangents, use_math_kernel=False):
 
 
 def _clean_du_dr(du_dr, clamp_val=100.0):
-    du_dr = torch.nan_to_num(du_dr, nan=0.0, posinf=clamp_val, neginf=-clamp_val)
+    #du_dr = torch.nan_to_num(du_dr, nan=0.0, posinf=clamp_val, neginf=-clamp_val)
     du_dr = du_dr.detach()
     du_dr_max = du_dr.abs().max().item()
     du_dr = torch.clamp(du_dr, min=-clamp_val, max=clamp_val)
     return du_dr, du_dr_max
 
+def adaptive_l2_loss(pred, target, p=0.75, c=1e-3):
+    error = pred - target
+    error_sq = error.pow(2).flatten(1).mean(dim=1)  # per-sample scalar MSE
+    weight = 1.0 / (error_sq.detach() + c).pow(p)   # detach = don't backprop through the weight itself
+    loss = (weight * error_sq).mean()
+    return loss
 
 def mean_flow_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=5.0, clamp_val=100.0):
     device = x_1.device
@@ -86,7 +92,7 @@ def mean_flow_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=
     t_minus_r = (t - r).reshape(-1, 1, 1, 1)
     u_target = v + t_minus_r * du_dr
 
-    loss = F.smooth_l1_loss(u, u_target.detach())
+    loss = adaptive_l2_loss(u, u_target.detach(), p=0.75, c=1e-3)
     return loss, du_dr_max
 
 
@@ -116,5 +122,5 @@ def imf_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=5.0, c
     t_minus_r = (t - r).reshape(-1, 1, 1, 1)
     V_theta = model_output + t_minus_r * du_dr
 
-    loss = F.smooth_l1_loss(V_theta, v_star, beta=2.0)
+    loss = adaptive_l2_loss(V_theta, v_star, p=0.75, c=1e-3)
     return loss, du_dr_max
