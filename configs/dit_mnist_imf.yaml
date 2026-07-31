@@ -1,7 +1,7 @@
 training:
   epochs: 200
   loss_type: improved_mean_flow
-  batch_size: 256
+  batch_size: 512
   learning_rate: 0.00001
   warmup_epochs: 0
   min_lr: 0.00001
@@ -10,7 +10,7 @@ model:
   type: dit
   hidden_dim: 128
   num_heads: 4
-  num_layers: 8
+  num_layers: 12
   patch_size: 4
   dataset: mnist
   in_channels: 1

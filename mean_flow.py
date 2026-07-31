@@ -39,7 +39,7 @@ def _make_cfg_fn(model, train_labels, pure_null_labels, w, w_reshaped):
     return f
 
 
-def _clean_du_dr(du_dr, clamp_val=100.0):
+def _clean_du_dr(du_dr, clamp_val=1.0e5):
     du_dr = torch.nan_to_num(du_dr, nan=0.0, posinf=clamp_val, neginf=-clamp_val)
     du_dr = du_dr.detach()
     du_dr_max = du_dr.abs().max().item()
