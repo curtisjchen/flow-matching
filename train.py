@@ -130,14 +130,14 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
 
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)  # unscale grads before clipping, or max_norm=1.0 clips scaled (huge) grads
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             scaler.step(optimizer)
             scaler.update()
 
             batch += 1
             if (batch + 1) % 100 == 0:
                 du_dr_str = f"{du_dr_max:.2f}" if du_dr_max is not None else "N/A"
-                print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Loss: {loss:.4f} | du_dr max: {du_dr_str}")
+                print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Loss: {loss:.4f} | du_dr max: {du_dr_str} | grad_norm (pre-clip): {grad_norm:.2f}")
             epoch_loss += loss.item()
 
         avg_epoch_loss = epoch_loss / batch
