@@ -107,7 +107,7 @@ def imf_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=5.0):
         v_cond, v_uncond = v_double.chunk(2, dim=0)
         return v_uncond + w_reshaped * (v_cond - v_uncond)
  
-    v_theta = f(z_r, r, r)
+    v_theta = f(z_r, r, r).detach()
  
     primals  = (z_r, r, t)
     tangents = (v_theta, torch.ones_like(r), torch.zeros_like(t))
