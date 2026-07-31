@@ -81,7 +81,7 @@ def mean_flow_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=
     return loss, du_dr_max
 
 
-def imf_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=5.0, clamp_val=100.0):
+def imf_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=5.0, clamp_val=20.0):
     device = x_1.device
     b = x_1.shape[0]
 
