@@ -33,7 +33,9 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                     patch_size=config["model"]["patch_size"],
                     in_channels=config["model"]["in_channels"],
                     image_size=config["model"]["image_size"],
-                    num_classes=config["model"]["num_classes"])
+                    num_classes=config["model"]["num_classes"],
+                    w_min=config["model"].get("w_min", 1.0),
+                    w_max=config["model"].get("w_max", 5.0))
     elif config["model"]["type"] == "unet":
         model = UNet(time_in=config["model"]["time_in"],
                     time_out=config["model"]["time_out"],
@@ -42,7 +44,9 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                     down_out_1=config["model"]["down_out_1"],
                     down_out_2=config["model"]["down_out_2"],
                     prefinal=config["model"]["prefinal"],
-                    num_classes=config["model"]["num_classes"])
+                    num_classes=config["model"]["num_classes"],
+                    w_min=config["model"].get("w_min", 1.0),
+                    w_max=config["model"].get("w_max", 5.0))
     else:
         print("model config not found")
         return
@@ -94,23 +98,38 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             labels = labels.to(device)
             _, c, h, w = images.shape
             optimizer.zero_grad()
+            raw_velocity_mse = None
             if loss_type == "mean_flow":
-                loss = mean_flow_loss(
+                loss, raw_velocity_mse = mean_flow_loss(
                     model=model, 
                     x_1=images,
                     labels=labels,
+                    p_rt=config['training'].get('p_rt', 0.5),
                     p_uncond=config['model']['p_uncond'], 
                     w_min=config['model']['w_min'],
-                    w_max=config['model']['w_max']
+                    w_max=config['model']['w_max'],
+                    adaptive_loss_power=config['training'].get('adaptive_loss_power', 1.0),
+                    adaptive_loss_eps=config['training'].get('adaptive_loss_eps', 1e-2),
+                    time_sampler=config['training'].get('time_sampler', 'uniform'),
+                    logit_normal_mean=config['training'].get('logit_normal_mean', -0.4),
+                    logit_normal_std=config['training'].get('logit_normal_std', 1.0),
+                    return_raw_mse=True,
                 )
             elif loss_type == "improved_mean_flow":
-                loss = imf_loss(
+                loss, raw_velocity_mse = imf_loss(
                     model=model, 
                     x_1=images,
                     labels=labels,
+                    p_rt=config['training'].get('p_rt', 0.5),
                     p_uncond=config['model']['p_uncond'], 
                     w_min=config['model']['w_min'],
-                    w_max=config['model']['w_max']
+                    w_max=config['model']['w_max'],
+                    adaptive_loss_power=config['training'].get('adaptive_loss_power', 1.0),
+                    adaptive_loss_eps=config['training'].get('adaptive_loss_eps', 1e-2),
+                    time_sampler=config['training'].get('time_sampler', 'uniform'),
+                    logit_normal_mean=config['training'].get('logit_normal_mean', -0.4),
+                    logit_normal_std=config['training'].get('logit_normal_std', 1.0),
+                    return_raw_mse=True,
                 )
             else:
                 loss = flow_matching_loss(
@@ -126,13 +145,20 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             optimizer.step()
             batch += 1
             if (batch + 1) % 100 == 0:
-                print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Loss: {loss:.4f}")
-            epoch_loss += loss.item()
+                if raw_velocity_mse is None:
+                    print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Loss: {loss:.4f}")
+                else:
+                    print(
+                        f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | "
+                        f"Objective: {loss:.4f} | Velocity MSE: {raw_velocity_mse:.4f}"
+                    )
+            epoch_loss += (raw_velocity_mse if raw_velocity_mse is not None else loss).item()
         avg_epoch_loss = epoch_loss / batch
         epoch_loss_list.append(avg_epoch_loss)
         current_lr = optimizer.param_groups[0]['lr']
         elapsed = time.time() - start
-        print(f"Epoch {epoch+1}/{epochs} | LR: {current_lr:.6f}| Avg Loss: {avg_epoch_loss:.5f} | Time Taken: {elapsed//60:.0f}m {elapsed%60:.0f}s")
+        loss_name = "Avg Velocity MSE" if loss_type in {"mean_flow", "improved_mean_flow"} else "Avg Loss"
+        print(f"Epoch {epoch+1}/{epochs} | LR: {current_lr:.6f}| {loss_name}: {avg_epoch_loss:.5f} | Time Taken: {elapsed//60:.0f}m {elapsed%60:.0f}s")
         if (epoch + 1) % 5 == 0 and save_all:
             save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
             print(f"Epoch {epoch+1} Checkpoint Saved!")
@@ -140,12 +166,17 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         if (epoch + 1) % 10 == 0:
             model.eval()
             with torch.inference_mode():
-                gen_labels = torch.arange(20, device=device) % num_classes
+                # Two rows of classes 0..9.  Keep the grid width equal to the
+                # class count so each column is consistently one digit class.
+                num_sample_rows = 2
+                gen_labels = torch.arange(
+                    num_sample_rows * num_classes, device=device
+                ) % num_classes
                 if loss_type == "flow_matching":
                     sample = euler_solve(
                         model=model, 
                         N=32, 
-                        shape=(20, c, h, w), 
+                        shape=(gen_labels.numel(), c, h, w),
                         labels=gen_labels, 
                         w_val=3.0, 
                         null_class_idx=model.null_class_idx)
@@ -153,12 +184,12 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                     sample = mean_flow_multistep_sample(
                         model=model, 
                         N=1, 
-                        shape=(20, c, h, w), 
+                        shape=(gen_labels.numel(), c, h, w),
                         labels=gen_labels, 
                         w_val=3.0, 
                         null_class_idx=model.null_class_idx)
             sample = sample * 0.3081 + 0.1307
-            grid = torchvision.utils.make_grid(sample.cpu())
+            grid = torchvision.utils.make_grid(sample.cpu(), nrow=num_classes)
             torchvision.utils.save_image(grid, f"sample_images/{config_stem}_epoch_{epoch+1}.png")
             model.train()
     if not save_all:

@@ -1,0 +1,31 @@
+training:
+  # Fast correctness check: typically well under 1 hour on a free T4/P100.
+  epochs: 20
+  loss_type: mean_flow
+  batch_size: 128
+  learning_rate: 2.0e-4
+  min_lr: 2.0e-5
+  warmup_epochs: 2
+  p_rt: 0.5
+  adaptive_loss_power: 1.0
+  adaptive_loss_eps: 1.0e-2
+  time_sampler: logit_normal
+  logit_normal_mean: -0.4
+  logit_normal_std: 1.0
+
+model:
+  type: unet
+  down_in_1: 1
+  down_out_1: 32
+  down_in_2: 32
+  down_out_2: 64
+  prefinal: 16
+  time_in: 128
+  time_out: 256
+  c: 1
+  w: 28
+  h: 28
+  w_min: 1.0
+  w_max: 5.0
+  p_uncond: 0.1
+  num_classes: 10
