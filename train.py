@@ -153,8 +153,6 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         if (epoch + 1) % 10 == 0:
             model.eval()
             with torch.inference_mode():
-                # Two rows of classes 0..9.  Keep the grid width equal to the
-                # class count so each column is consistently one digit class.
                 num_sample_rows = 5
                 gen_labels = torch.arange(
                     num_sample_rows * num_classes, device=device
@@ -165,7 +163,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                         N=32, 
                         shape=(gen_labels.numel(), c, h, w),
                         labels=gen_labels, 
-                        w_val=3.0, 
+                        w_val=2.0, 
                         null_class_idx=model.null_class_idx)
                 else:
                     sample = mean_flow_multistep_sample(
@@ -173,7 +171,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                         N=1, 
                         shape=(gen_labels.numel(), c, h, w),
                         labels=gen_labels, 
-                        w_val=3.0, 
+                        w_val=2.0, 
                         null_class_idx=model.null_class_idx)
             sample = sample * 0.3081 + 0.1307
             grid = torchvision.utils.make_grid(sample.cpu(), nrow=num_classes)

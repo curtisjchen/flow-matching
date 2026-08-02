@@ -121,14 +121,12 @@ def mean_flow_loss(
         (velocity, torch.ones_like(r), torch.zeros_like(t)),
     )
 
-    # Paper replication: leave the JVP un-clamped.
-    # d_mean_velocity_dr = torch.clamp(d_mean_velocity_dr, min=-20.0, max=20.0)
+    d_mean_velocity_dr = torch.clamp(d_mean_velocity_dr, min=-20.0, max=20.0)
     interval = (t - r).view(-1, 1, 1, 1)
     target_mean_velocity = velocity + interval * d_mean_velocity_dr
     loss, raw_mse = _adaptive_velocity_loss(
         mean_velocity, target_mean_velocity, adaptive_loss_power, adaptive_loss_eps
     )
 
-    # Previous experiment, retained for quick A/B comparison:
     # return F.smooth_l1_loss(mean_velocity, target_mean_velocity.detach())
     return (loss, raw_mse) if return_raw_mse else loss
