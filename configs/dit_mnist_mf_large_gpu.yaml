@@ -3,7 +3,7 @@ training:
   # 30 epochs / batch 64 is a conservative sub-5-hour budget on T4/P100.
   epochs: 100
   loss_type: mean_flow
-  batch_size: 256
+  batch_size: 64
   learning_rate: 1.0e-3
   min_lr: 1.0e-4
   warmup_epochs: 10
