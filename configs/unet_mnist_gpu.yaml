@@ -2,10 +2,10 @@ training:
   # Conservative sub-5-hour run on a free Kaggle/Colab T4 or P100.
   epochs: 500
   loss_type: mean_flow
-  batch_size: 256
+  batch_size: 1024
   learning_rate: 1.0e-4
   min_lr: 1.0e-5
-  warmup_epochs: 20
+  warmup_epochs: 10
   p_rt: 0.5
   adaptive_loss_power: 1.0
   adaptive_loss_eps: 1.0e-2
