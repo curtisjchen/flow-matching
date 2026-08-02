@@ -71,7 +71,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_path", type=str, default="configs/unet_mnist_large.yaml")
     parser.add_argument("--checkpoint_path", type=str, default="checkpoints/unet_mnist_large_epoch_34.pt")
-    parser.add_argument("--steps_array", type=int, nargs="+", default=[4, 16, 32])
+    parser.add_argument("--steps_array", type=int, nargs="+", default=[1])
     parser.add_argument("--samples", type=int, default=16)
     args = parser.parse_args()
     for n_steps in args.steps_array:

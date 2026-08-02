@@ -116,22 +116,6 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                     logit_normal_std=config['training'].get('logit_normal_std', 1.0),
                     return_raw_mse=True,
                 )
-            elif loss_type == "improved_mean_flow":
-                loss, raw_velocity_mse = imf_loss(
-                    model=model, 
-                    x_1=images,
-                    labels=labels,
-                    p_rt=config['training'].get('p_rt', 0.5),
-                    p_uncond=config['model']['p_uncond'], 
-                    w_min=config['model']['w_min'],
-                    w_max=config['model']['w_max'],
-                    adaptive_loss_power=config['training'].get('adaptive_loss_power', 1.0),
-                    adaptive_loss_eps=config['training'].get('adaptive_loss_eps', 1e-2),
-                    time_sampler=config['training'].get('time_sampler', 'uniform'),
-                    logit_normal_mean=config['training'].get('logit_normal_mean', -0.4),
-                    logit_normal_std=config['training'].get('logit_normal_std', 1.0),
-                    return_raw_mse=True,
-                )
             else:
                 loss = flow_matching_loss(
                     model=model, 
