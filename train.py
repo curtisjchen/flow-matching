@@ -89,10 +89,13 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             for _ in range(start_epoch):
                 scheduler.step()
 
+    scaler = torch.amp.GradScaler("cuda")
+
     for epoch in range(start_epoch if resume_from else 0, epochs):
         start = time.time()
         epoch_loss = 0
         batch = 0
+
         for images, labels in data:
             images = images.to(device)
             labels = labels.to(device)
@@ -162,7 +165,9 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         if (epoch + 1) % 5 == 0 and save_all:
             save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
             print(f"Epoch {epoch+1} Checkpoint Saved!")
+
         scheduler.step() 
+
         if (epoch + 1) % 10 == 0:
             model.eval()
             with torch.inference_mode():

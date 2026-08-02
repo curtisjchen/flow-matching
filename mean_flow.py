@@ -75,37 +75,60 @@ def mean_flow_loss(
     # cap the proportion of r != t: force r = t for p_rt fraction of the batch
     force_eq = torch.rand(b, device=device) < p_rt
     r = torch.where(force_eq, t, r)
+    return r, t
 
-    r_ = r.reshape(-1, 1, 1, 1)
-    z_r = (1 - r_) * x_0 + r_ * x_1
-    v = x_1 - x_0
 
-    #drop labels
+def _prepare_labels(labels, model, p_uncond, device):
     drop_mask = torch.rand(labels.shape[0], device=device) < p_uncond
     train_labels = torch.where(drop_mask, model.null_class_idx, labels)
     pure_null_labels = torch.full_like(labels, model.null_class_idx)
+    return train_labels, pure_null_labels
 
-    #sample w
-    u = torch.rand(labels.shape[0], device=labels.device)
+
+def _sample_w(labels, w_min, w_max, device):
+    u = torch.rand(labels.shape[0], device=device)
     w = w_min + u * (w_max - w_min)
-    w_reshaped = w.view(-1, 1, 1, 1)
+    return w, w.view(-1, 1, 1, 1)
 
+
+def _make_cfg_fn(model, train_labels, pure_null_labels, w, w_reshaped):
+    """Builds a CFG-wrapped forward closure: f(z, r, t) -> guided velocity."""
     def f(z_in, r_in, t_in):
         z_double = torch.cat([z_in, z_in], dim=0)
         r_double = torch.cat([r_in, r_in], dim=0)
         t_double = torch.cat([t_in, t_in], dim=0)
         labels_double = torch.cat([train_labels, pure_null_labels], dim=0)
-
         w_double = torch.cat([w, w], dim=0)
 
-        v_double = model(
-            z_double, r_double, t_double, w=w_double, class_labels=labels_double
-        )
-        
+        v_double = model(z_double, r_double, t_double, w=w_double, class_labels=labels_double)
         v_cond, v_uncond = v_double.chunk(2, dim=0)
         return v_uncond + w_reshaped * (v_cond - v_uncond)
+    return f
 
-    primals  = (z_r, r, t)
+
+def _clean_du_dr(du_dr, clamp_val=20.0):
+    du_dr = torch.nan_to_num(du_dr, nan=0.0, posinf=clamp_val, neginf=-clamp_val)
+    du_dr = du_dr.detach()
+    du_dr_max = du_dr.abs().max().item()
+    du_dr = torch.clamp(du_dr, min=-clamp_val, max=clamp_val)
+    return du_dr, du_dr_max
+
+def mean_flow_loss(model, x_1, labels, p_rt=0.5, p_uncond=0.1, w_min=1.0, w_max=5.0, clamp_val=100.0):
+    device = x_1.device
+    b = x_1.shape[0]
+
+    x_0 = torch.randn_like(x_1)
+    r, t = _sample_r_t(b, device, p_rt)
+
+    r_ = r.reshape(-1, 1, 1, 1)
+    z_r = (1 - r_) * x_0 + r_ * x_1
+    v = x_1 - x_0
+
+    train_labels, pure_null_labels = _prepare_labels(labels, model, p_uncond, device)
+    w, w_reshaped = _sample_w(labels, w_min, w_max, device)
+    f = _make_cfg_fn(model, train_labels, pure_null_labels, w, w_reshaped)
+
+    primals = (z_r, r, t)
     tangents = (v, torch.ones_like(r), torch.zeros_like(t))
     u, du_dr = torch.func.jvp(f, primals, tangents)
 
@@ -157,7 +180,7 @@ def imf_loss(
     """
     device = x_1.device
     b = x_1.shape[0]
- 
+
     x_0 = torch.randn_like(x_1)
  
     r, t = sample_ordered_times(
@@ -171,13 +194,11 @@ def imf_loss(
     z_r = (1 - r_) * x_0 + r_ * x_1
     v_star = x_1 - x_0
 
-    drop_mask = torch.rand(labels.shape[0], device=device) < p_uncond
-    train_labels = torch.where(drop_mask, model.null_class_idx, labels)
-    pure_null_labels = torch.full_like(labels, model.null_class_idx)
+    train_labels, pure_null_labels = _prepare_labels(labels, model, p_uncond, device)
+    w, w_reshaped = _sample_w(labels, w_min, w_max, device)
+    f = _make_cfg_fn(model, train_labels, pure_null_labels, w, w_reshaped)
 
-    u = torch.rand(labels.shape[0], device=device)
-    w = w_min + u * (w_max - w_min)
-    w_reshaped = w.view(-1, 1, 1, 1)
+    v_theta = f(z_r, r, r).detach()
 
     def f(z_in, r_in, t_in):
         z_double = torch.cat([z_in, z_in], dim=0)
@@ -221,35 +242,10 @@ def imf_loss(
         return loss, (squared_error / v_star[0].numel()).mean().detach()
     return loss
 
-if __name__ == "__main__":
-    from models.unet import UNet
-    import torch
-    
-    model = UNet(
-        down_in_1=1, down_in_2=64, down_out_1=64, down_out_2=256,
-        prefinal=32, time_in=128, time_out=256
-    )
-    
-    if not hasattr(model, 'null_class_idx'):
-        model.null_class_idx = 10 
-        
-    batch_size = 4
-    
-    x_1 = torch.randn(batch_size, 1, 28, 28)
-    
-    labels = torch.randint(low=0, high=10, size=(batch_size,))
-    
-    print(f"Testing with batch size {batch_size}...")
-    print(f"Original labels: {labels}")
-    
-    try:
-        loss1 = mean_flow_loss(model, x_1, labels)
-        print(f"Mean Flow Loss: {loss1.item():.4f} - SUCCESS")
-    except Exception as e:
-        print(f"Mean Flow Loss FAILED: {e}")
-        
-    try:
-        loss2 = imf_loss(model, x_1, labels)
-        print(f"Improved Mean Flow Loss: {loss2.item():.4f} - SUCCESS")
-    except Exception as e:
-        print(f"Improved Mean Flow Loss FAILED: {e}")
+    du_dr, du_dr_max = _clean_du_dr(du_dr, clamp_val)
+
+    t_minus_r = (t - r).reshape(-1, 1, 1, 1)
+    V_theta = model_output + t_minus_r * du_dr
+
+    loss = F.huber_loss(V_theta, v_star)
+    return loss, du_dr_max

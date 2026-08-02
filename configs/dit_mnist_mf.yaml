@@ -9,9 +9,10 @@ training:
 model:
   type: dit
   hidden_dim: 128
-  num_heads: 8
-  num_layers: 8
+  num_heads: 4
+  num_layers: 12
   patch_size: 4
+  dataset: mnist
   in_channels: 1
   c: 1
   w: 28

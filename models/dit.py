@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from modules import TimeEmbedding, WEmbedding, ClassEmbedding
+import torch.nn.functional as F
 
 class PatchEmbed(nn.Module):
     def __init__(self, in_channels, patchsize, hidden_dims, image_size):
@@ -24,29 +25,37 @@ class PatchEmbed(nn.Module):
 class DiTBlock(nn.Module):
     def __init__(self, hidden_dim, num_heads):
         super().__init__()
+        self.num_heads = num_heads
+        self.head_dim = hidden_dim // num_heads
+
         self.ln1 = nn.LayerNorm(hidden_dim, elementwise_affine=False)
         self.ln2 = nn.LayerNorm(hidden_dim, elementwise_affine=False)
+
         self.attention = nn.MultiheadAttention(hidden_dim, num_heads, batch_first=True)
+
         self.up_proj = nn.Linear(hidden_dim, hidden_dim * 4)
         self.down_proj = nn.Linear(hidden_dim * 4, hidden_dim)
         self.swiglu = nn.SiLU()
+
         self.adaLN = nn.Linear(hidden_dim, hidden_dim * 6)
         nn.init.zeros_(self.adaLN.weight)
         nn.init.zeros_(self.adaLN.bias)
 
     def forward(self, image, t):
         shift1, scale1, gate1, shift2, scale2, gate2 = self.adaLN(t).chunk(6, dim=-1)
-        shift1 = shift1[:,None,:]
-        scale1 = scale1[:,None,:]
-        gate1 = gate1[:,None,:]
-        shift2 = shift2[:,None,:]
-        scale2 = scale2[:,None,:]
-        gate2 = gate2[:,None,:]
+        shift1 = shift1[:, None, :]
+        scale1 = scale1[:, None, :]
+        gate1 = gate1[:, None, :]
+        shift2 = shift2[:, None, :]
+        scale2 = scale2[:, None, :]
+        gate2 = gate2[:, None, :]
+
         h = self.ln1(image)
         h = h * (1 + scale1) + shift1
         image = image + gate1 * self.attention(h, h, h)[0]
+
         h = self.ln2(image)
-        h = h * (1  + scale2) + shift2
+        h = h * (1 + scale2) + shift2
         image = image + gate2 * self.down_proj(self.swiglu(self.up_proj(h)))
         return image
 
