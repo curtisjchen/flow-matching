@@ -89,8 +89,6 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             for _ in range(start_epoch):
                 scheduler.step()
 
-    scaler = torch.amp.GradScaler("cuda")
-
     for epoch in range(start_epoch if resume_from else 0, epochs):
         start = time.time()
         epoch_loss = 0
