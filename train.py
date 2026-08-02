@@ -2,7 +2,7 @@ from models.unet import UNet
 from models.dit import DiT
 from data import get_dataloader
 from flow import flow_matching_loss
-from mean_flow import mean_flow_loss, imf_loss
+from mean_flow import mean_flow_loss
 import torch
 import os
 import yaml
@@ -155,7 +155,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             with torch.inference_mode():
                 # Two rows of classes 0..9.  Keep the grid width equal to the
                 # class count so each column is consistently one digit class.
-                num_sample_rows = 2
+                num_sample_rows = 5
                 gen_labels = torch.arange(
                     num_sample_rows * num_classes, device=device
                 ) % num_classes
