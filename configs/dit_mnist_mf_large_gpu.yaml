@@ -1,12 +1,11 @@
 training:
   # Transformer comparison run; use this only after the U-Net smoke run.
-  # 30 epochs / batch 64 is a conservative sub-5-hour budget on T4/P100.
-  epochs: 100
+  epochs: 50
   loss_type: mean_flow
   batch_size: 64
   learning_rate: 1.0e-3
   min_lr: 1.0e-4
-  warmup_epochs: 10
+  warmup_epochs: 0
   p_rt: 0.5
   adaptive_loss_power: 1.0
   adaptive_loss_eps: 1.0e-2
@@ -16,9 +15,9 @@ training:
 
 model:
   type: dit
-  hidden_dim: 128
-  num_heads: 8
-  num_layers: 8
+  hidden_dim: 64
+  num_heads: 4
+  num_layers: 4
   patch_size: 2
   in_channels: 1
   c: 1
