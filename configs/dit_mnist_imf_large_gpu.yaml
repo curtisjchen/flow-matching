@@ -1,0 +1,30 @@
+training:
+  # Transformer comparison run; use this only after the U-Net smoke run.
+  epochs: 100
+  loss_type: improved_mean_flow
+  batch_size: 64
+  learning_rate: 1.0e-3
+  min_lr: 1.0e-4
+  warmup_epochs: 0
+  p_rt: 0.5
+  adaptive_loss_power: 1.0
+  adaptive_loss_eps: 1.0e-2
+  time_sampler: logit_normal
+  logit_normal_mean: -0.4
+  logit_normal_std: 1.0
+
+model:
+  type: dit
+  hidden_dim: 64
+  num_heads: 4
+  num_layers: 4
+  patch_size: 2
+  in_channels: 1
+  c: 1
+  w: 28
+  h: 28
+  image_size: 28
+  w_min: 1.0
+  w_max: 5.0
+  p_uncond: 0.1
+  num_classes: 10
