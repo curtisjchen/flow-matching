@@ -7,12 +7,72 @@ def improved_velocity_from_mean_velocity(
     d_mean_velocity_dr: torch.Tensor,
     interval: torch.Tensor,
 ) -> torch.Tensor:
-    """Convert a mean velocity to an instantaneous velocity.
-
-    This project parameterizes paths from noise at time 0 to data at time 1,
-    so the iMF identity is v(z_r, r) = u(z_r, r, t) - (t-r) D_r u.
-    """
+    """iMF Identity: v_pred = u(z_r, r, t) - (t-r) * stopgrad(D_r u)."""
     return mean_velocity - interval * d_mean_velocity_dr
+
+
+def improved_mean_flow_loss(
+    model,
+    x_1: torch.Tensor,
+    labels: torch.Tensor,
+    p_rt: float = 0.5,
+    p_uncond: float = 0.1,
+    w_min: float = 1.0,
+    w_max: float = 5.0,
+    time_sampler: str = "logit_normal",
+    logit_normal_mean: float = -0.4,
+    logit_normal_std: float = 1.0,
+    use_adaptive_loss: bool = False,
+    adaptive_loss_power: float = 0.5,  # 0.5 prevents gradient explosion
+    adaptive_loss_eps: float = 1e-3,
+):
+    device = x_1.device
+    batch_size = x_1.shape[0]
+
+    # Prior noise and ordered time steps
+    x_0 = torch.randn_like(x_1)
+    r, t = sample_ordered_times(
+        batch_size, device, time_sampler, logit_normal_mean, logit_normal_std
+    )
+    r = torch.where(torch.rand(batch_size, device=device) < p_rt, t, r)
+
+    r_image = r.view(-1, 1, 1, 1)
+    z_r = (1 - r_image) * x_0 + r_image * x_1
+
+    # Fixed ground-truth velocity target
+    target_v = x_1 - x_0
+
+    # Prepare labels and guidance scale
+    train_labels, pure_null_labels = _prepare_labels(labels, model, p_uncond, device)
+    w, w_reshaped = _sample_w(labels, w_min, w_max, device)
+    f = _make_cfg_fn(model, train_labels, pure_null_labels, w, w_reshaped)
+
+    # Compute predicted mean velocity and its derivative along path
+    mean_velocity, d_mean_velocity_dr = torch.func.jvp(
+        f,
+        (z_r, r, t),
+        (target_v, torch.ones_like(r), torch.zeros_like(t)),
+    )
+
+    interval = (t - r).view(-1, 1, 1, 1)
+
+    # Convert predicted u into predicted instantaneous velocity v_pred.
+    # CRITICAL: stop_gradient (detach) on d_mean_velocity_dr
+    v_pred = improved_velocity_from_mean_velocity(
+        mean_velocity, d_mean_velocity_dr.detach(), interval
+    )
+
+    if use_adaptive_loss:
+        squared_error = (v_pred - target_v).square().flatten(1).sum(dim=1)
+        adaptive_weight = (squared_error.detach() + adaptive_loss_eps).pow(
+            adaptive_loss_power
+        )
+        loss = (squared_error / adaptive_weight).mean()
+    else:
+        loss = F.mse_loss(v_pred, target_v)
+
+    raw_mse = F.mse_loss(v_pred.detach(), target_v).item()
+    return loss, raw_mse
 
 
 def sample_ordered_times(
@@ -121,7 +181,7 @@ def mean_flow_loss(
         (velocity, torch.ones_like(r), torch.zeros_like(t)),
     )
 
-    d_mean_velocity_dr = torch.clamp(d_mean_velocity_dr, min=-20.0, max=20.0)
+    #d_mean_velocity_dr = torch.clamp(d_mean_velocity_dr, min=-10.0, max=10.0)
     interval = (t - r).view(-1, 1, 1, 1)
     target_mean_velocity = velocity + interval * d_mean_velocity_dr
     loss, raw_mse = _adaptive_velocity_loss(

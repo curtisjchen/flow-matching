@@ -153,7 +153,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         if (epoch + 1) % 10 == 0:
             model.eval()
             with torch.inference_mode():
-                num_sample_rows = 5
+                num_sample_rows = 10
                 gen_labels = torch.arange(
                     num_sample_rows * num_classes, device=device
                 ) % num_classes
