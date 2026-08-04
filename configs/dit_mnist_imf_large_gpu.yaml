@@ -17,7 +17,7 @@ model:
   type: dit
   hidden_dim: 96
   num_heads: 4
-  num_layers: 8
+  num_layers: 6
   patch_size: 2
   in_channels: 1
   c: 1

@@ -101,12 +101,12 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             optimizer.zero_grad()
             raw_velocity_mse = None
             if loss_type == "mean_flow":
-                loss, raw_velocity_mse = mean_flow_loss(
-                    model=model, 
+                loss, raw_velocity_mse, diagnostics = mean_flow_loss(
+                    model=model,
                     x_1=images,
                     labels=labels,
                     p_rt=config['training'].get('p_rt', 0.5),
-                    p_uncond=config['model']['p_uncond'], 
+                    p_uncond=config['model']['p_uncond'],
                     w_min=config['model']['w_min'],
                     w_max=config['model']['w_max'],
                     adaptive_loss_power=config['training'].get('adaptive_loss_power', 1.0),
@@ -114,15 +114,15 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                     time_sampler=config['training'].get('time_sampler', 'uniform'),
                     logit_normal_mean=config['training'].get('logit_normal_mean', -0.4),
                     logit_normal_std=config['training'].get('logit_normal_std', 1.0),
-                    return_raw_mse=True,
+                    clamp_d_dr=config['training'].get('clamp_d_dr', None),
                 )
             elif loss_type == "improved_mean_flow":
-                loss, raw_velocity_mse = improved_mean_flow_loss(
-                    model=model, 
+                loss, raw_velocity_mse, diagnostics = improved_mean_flow_loss(
+                    model=model,
                     x_1=images,
                     labels=labels,
                     p_rt=config['training'].get('p_rt', 0.5),
-                    p_uncond=config['model']['p_uncond'], 
+                    p_uncond=config['model']['p_uncond'],
                     w_min=config['model']['w_min'],
                     w_max=config['model']['w_max'],
                     adaptive_loss_power=config['training'].get('adaptive_loss_power', 1.0),
@@ -130,7 +130,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                     time_sampler=config['training'].get('time_sampler', 'uniform'),
                     logit_normal_mean=config['training'].get('logit_normal_mean', -0.4),
                     logit_normal_std=config['training'].get('logit_normal_std', 1.0),
-                    return_raw_mse=True,
+                    clamp_d_dr=config['training'].get('clamp_d_dr', None),
                 )
             else:
                 loss = flow_matching_loss(
@@ -141,6 +141,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                     w_min=config['model']['w_min'],
                     w_max=config['model']['w_max']
                 )
+                diagnostics = None
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
@@ -151,7 +152,8 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                 else:
                     print(
                         f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | "
-                        f"Objective: {loss:.4f} | Velocity MSE: {raw_velocity_mse:.4f}"
+                        f"Objective: {loss:.4f} | Velocity MSE: {raw_velocity_mse:.4f} | "
+                        f"Max |dU/dr|: {diagnostics['max_abs_d_dr']:.2f}"
                     )
             epoch_loss += (raw_velocity_mse if raw_velocity_mse is not None else loss).item()
         avg_epoch_loss = epoch_loss / batch
