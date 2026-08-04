@@ -97,15 +97,7 @@ def mean_flow_loss(
     logit_normal_std=1.0,
     clamp_d_dr=None,
 ):
-    """Original MeanFlow loss for the repository's noise-to-data convention.
 
-    JVP tangent = ground-truth velocity (x_1 - x_0).
-
-    Returns:
-        loss: scalar training objective (adaptive-weighted).
-        raw_mse: scalar interpretable velocity MSE (detached).
-        diagnostics: dict with 'max_abs_d_dr' for debugging JVP blowups.
-    """
     device = x_1.device
     batch_size = x_1.shape[0]
     x_0 = torch.randn_like(x_1)
@@ -158,14 +150,6 @@ def improved_mean_flow_loss(
     logit_normal_std=1.0,
     clamp_d_dr=None,
 ):
-    """Faithful iMF (paper Eq. 12 / Algorithm 1, boundary-condition variant).
-
-    The JVP tangent is the model's own boundary-condition self-prediction
-    v_theta(z_r, r) := f(z_r, r, r), NOT the ground-truth velocity. The
-    regression target is still ground truth (x_1 - x_0), exactly as in MF.
-    This is the *only* substantive difference from mean_flow_loss -- same
-    stop-gradient placement, same adaptive weighting, same everything else.
-    """
     device = x_1.device
     batch_size = x_1.shape[0]
     x_0 = torch.randn_like(x_1)
@@ -183,9 +167,6 @@ def improved_mean_flow_loss(
     w, w_reshaped = _sample_w(labels, w_min, w_max, device)
     f = _make_cfg_fn(model, train_labels, pure_null_labels, w, w_reshaped)
 
-    # The one substantive change vs. mean_flow_loss: tangent = model's own
-    # instantaneous-velocity estimate via the boundary condition u(z,t,t) == v(z,t).
-    # Detached: no gradient flows through this extra forward call.
     boundary_velocity = f(z_r, r, r).detach()
 
     mean_velocity, d_mean_velocity_dr = torch.func.jvp(

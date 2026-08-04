@@ -1,16 +1,17 @@
-from models.unet import UNet
-from models.dit import DiT
 from data import get_dataloader
 from flow import flow_matching_loss
 from mean_flow import mean_flow_loss, improved_mean_flow_loss
+from utils import build_model
 import torch
 import os
 import yaml
 import argparse
 from pathlib import Path
 import time
-import torchvision
-from solver import euler_solve, mean_flow_multistep_sample
+
+# Import your standalone scripts
+from evaluate import evaluate
+from generate import generate
 
 def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_scheduler=False, save_all=True):
     os.makedirs("sample_images", exist_ok=True)
@@ -18,61 +19,32 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         config = yaml.safe_load(f)
     print("Config:")
     print(yaml.dump(config, default_flow_style=False))
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
+    
     config_stem = Path(config_path).stem
     data = get_dataloader(batch_size=config["training"]["batch_size"], train=True)
     loss_type = config["training"].get("loss_type", "flow_matching")
-    print(f"Using loss: {loss_type}")
     num_classes = config["model"]["num_classes"]
-    print(f"Number of Classes: {num_classes}")
-    if config["model"]["type"] == "dit":
-        model = DiT(hidden_dim=config["model"]["hidden_dim"],
-                    num_heads=config["model"]["num_heads"],
-                    num_layers=config["model"]["num_layers"],
-                    patch_size=config["model"]["patch_size"],
-                    in_channels=config["model"]["in_channels"],
-                    image_size=config["model"]["image_size"],
-                    num_classes=config["model"]["num_classes"],
-                    w_min=config["model"].get("w_min", 1.0),
-                    w_max=config["model"].get("w_max", 5.0))
-    elif config["model"]["type"] == "unet":
-        model = UNet(time_in=config["model"]["time_in"],
-                    time_out=config["model"]["time_out"],
-                    down_in_1=config["model"]["down_in_1"],
-                    down_in_2=config["model"]["down_in_2"],
-                    down_out_1=config["model"]["down_out_1"],
-                    down_out_2=config["model"]["down_out_2"],
-                    prefinal=config["model"]["prefinal"],
-                    num_classes=config["model"]["num_classes"],
-                    w_min=config["model"].get("w_min", 1.0),
-                    w_max=config["model"].get("w_max", 5.0))
-    else:
-        print("model config not found")
-        return
-    model = model.to(device)
-    # model = torch.compile(model)
+    
+    # 1. Build Model using shared util
+    model = build_model(config).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["training"]["learning_rate"])
+    
     epoch_loss_list = []
     os.makedirs("./checkpoints", exist_ok=True)
     epochs = config["training"]["epochs"]
-
     warmup_epochs = config["training"]["warmup_epochs"]
     min_lr = config["training"].get("min_lr", 0)
+    
+    # Setup Scheduler
     if warmup_epochs == 0:
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=epochs, eta_min=min_lr
-        )
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=min_lr)
     else:
-        warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
-            optimizer, start_factor=0.01, end_factor=1.0, total_iters=warmup_epochs
-        )
-        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=epochs - warmup_epochs, eta_min=min_lr
-        )
-        scheduler = torch.optim.lr_scheduler.SequentialLR(
-            optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs]
-        )
+        warmup_scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=0.01, end_factor=1.0, total_iters=warmup_epochs)
+        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs - warmup_epochs, eta_min=min_lr)
+        scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs])
 
     if resume_from:
         checkpoint = torch.load(resume_from, map_location=device, weights_only=True)
@@ -89,26 +61,23 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             for _ in range(start_epoch):
                 scheduler.step()
 
+    # Training Loop
     for epoch in range(start_epoch if resume_from else 0, epochs):
         start = time.time()
         epoch_loss = 0
         batch = 0
+        model.train()
 
         for images, labels in data:
-            images = images.to(device)
-            labels = labels.to(device)
-            _, c, h, w = images.shape
+            images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
             raw_velocity_mse = None
+            
             if loss_type == "mean_flow":
                 loss, raw_velocity_mse, diagnostics = mean_flow_loss(
-                    model=model,
-                    x_1=images,
-                    labels=labels,
-                    p_rt=config['training'].get('p_rt', 0.5),
-                    p_uncond=config['model']['p_uncond'],
-                    w_min=config['model']['w_min'],
-                    w_max=config['model']['w_max'],
+                    model=model, x_1=images, labels=labels,
+                    p_rt=config['training'].get('p_rt', 0.5), p_uncond=config['model']['p_uncond'],
+                    w_min=config['model']['w_min'], w_max=config['model']['w_max'],
                     adaptive_loss_power=config['training'].get('adaptive_loss_power', 1.0),
                     adaptive_loss_eps=config['training'].get('adaptive_loss_eps', 1e-2),
                     time_sampler=config['training'].get('time_sampler', 'uniform'),
@@ -118,13 +87,9 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                 )
             elif loss_type == "improved_mean_flow":
                 loss, raw_velocity_mse, diagnostics = improved_mean_flow_loss(
-                    model=model,
-                    x_1=images,
-                    labels=labels,
-                    p_rt=config['training'].get('p_rt', 0.5),
-                    p_uncond=config['model']['p_uncond'],
-                    w_min=config['model']['w_min'],
-                    w_max=config['model']['w_max'],
+                    model=model, x_1=images, labels=labels,
+                    p_rt=config['training'].get('p_rt', 0.5), p_uncond=config['model']['p_uncond'],
+                    w_min=config['model']['w_min'], w_max=config['model']['w_max'],
                     adaptive_loss_power=config['training'].get('adaptive_loss_power', 1.0),
                     adaptive_loss_eps=config['training'].get('adaptive_loss_eps', 1e-2),
                     time_sampler=config['training'].get('time_sampler', 'uniform'),
@@ -134,82 +99,66 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                 )
             else:
                 loss = flow_matching_loss(
-                    model=model, 
-                    x_1=images,
-                    labels=labels,
-                    p_uncond=config['model']['p_uncond'], 
-                    w_min=config['model']['w_min'],
-                    w_max=config['model']['w_max']
+                    model=model, x_1=images, labels=labels,
+                    p_uncond=config['model']['p_uncond'], w_min=config['model']['w_min'], w_max=config['model']['w_max']
                 )
                 diagnostics = None
+                
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             batch += 1
+            
             if (batch + 1) % 100 == 0:
                 if raw_velocity_mse is None:
                     print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Loss: {loss:.4f}")
                 else:
-                    print(
-                        f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | "
-                        f"Objective: {loss:.4f} | Velocity MSE: {raw_velocity_mse:.4f} | "
-                        f"Max |dU/dr|: {diagnostics['max_abs_d_dr']:.2f}"
-                    )
+                    print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Objective: {loss:.4f} | Vel MSE: {raw_velocity_mse:.4f} | Max |dU/dr|: {diagnostics['max_abs_d_dr']:.2f}")
             epoch_loss += (raw_velocity_mse if raw_velocity_mse is not None else loss).item()
+            
         avg_epoch_loss = epoch_loss / batch
         epoch_loss_list.append(avg_epoch_loss)
-        current_lr = optimizer.param_groups[0]['lr']
         elapsed = time.time() - start
-        loss_name = "Avg Velocity MSE" if loss_type in {"mean_flow", "improved_mean_flow"} else "Avg Loss"
-        print(f"Epoch {epoch+1}/{epochs} | LR: {current_lr:.6f}| {loss_name}: {avg_epoch_loss:.5f} | Time Taken: {elapsed//60:.0f}m {elapsed%60:.0f}s")
+        
+        print(f"Epoch {epoch+1}/{epochs} | LR: {optimizer.param_groups[0]['lr']:.6f}| Loss: {avg_epoch_loss:.5f} | Time: {elapsed//60:.0f}m {elapsed%60:.0f}s")
+        
+        # Save Checkpoint
         if (epoch + 1) % 5 == 0 and save_all:
             save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
             print(f"Epoch {epoch+1} Checkpoint Saved!")
 
         scheduler.step() 
 
+        # Generate & Eval
         if (epoch + 1) % 10 == 0:
-            model.eval()
-            with torch.inference_mode():
-                num_sample_rows = 10
-                gen_labels = torch.arange(
-                    num_sample_rows * num_classes, device=device
-                ) % num_classes
-                if loss_type == "flow_matching":
-                    sample = euler_solve(
-                        model=model, 
-                        N=32, 
-                        shape=(gen_labels.numel(), c, h, w),
-                        labels=gen_labels, 
-                        w_val=2.0, 
-                        null_class_idx=model.null_class_idx)
-                else:
-                    sample = mean_flow_multistep_sample(
-                        model=model, 
-                        N=1, 
-                        shape=(gen_labels.numel(), c, h, w),
-                        labels=gen_labels, 
-                        w_val=2.0, 
-                        null_class_idx=model.null_class_idx)
-            sample = sample * 0.3081 + 0.1307
-            grid = torchvision.utils.make_grid(sample.cpu(), nrow=num_classes)
-            torchvision.utils.save_image(grid, f"sample_images/{config_stem}_epoch_{epoch+1}.png")
-            model.train()
+            print(f"\n--- Running Generation & Eval for Epoch {epoch+1} ---")
+            n_steps = 32 if loss_type == "flow_matching" else 1
+            
+            # Use active model from memory (avoids loading checkpoint again)
+            gen_labels = (torch.arange(10 * num_classes) % num_classes).to(device)
+            
+            generate(
+                config_path=config_path, n_steps=n_steps, samples=len(gen_labels),
+                labels=gen_labels, model=model, suffix=f"epoch_{epoch+1}"
+            )
+            
+            evaluate(
+                config_path=config_path, step_counts=[n_steps], batchsize=256, 
+                samples=1000, cfg_scale=1.0, model=model, suffix=f"epoch_{epoch+1}"
+            )
+            print("--------------------------------------------------\n")
+
     if not save_all:
         save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
     return epoch_loss_list
-            
 
 def save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler):
     checkpoint = {
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
+        'epoch': epoch, 'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
-        'epoch_loss_list' : epoch_loss_list,
-        'scheduler_state_dict': scheduler.state_dict()
+        'epoch_loss_list' : epoch_loss_list, 'scheduler_state_dict': scheduler.state_dict()
     }
-    filepath = f"./checkpoints/{config_stem}_epoch_{epoch+1}.pt"
-    torch.save(checkpoint, filepath)
+    torch.save(checkpoint, f"./checkpoints/{config_stem}_epoch_{epoch+1}.pt")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
