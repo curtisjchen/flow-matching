@@ -144,7 +144,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             
             evaluate(
                 config_path=config_path, step_counts=[n_steps], batchsize=256, 
-                samples=1000, cfg_scale=1.0, model=model, suffix=f"epoch_{epoch+1}"
+                samples=1024, cfg_scale=1.0, model=model, suffix=f"epoch_{epoch+1}"
             )
             print("--------------------------------------------------\n")
 
