@@ -64,6 +64,9 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
     
     model.eval()
 
+    num_params = sum(p.numel() for p in model.parameters())
+    print(f"Evaluating Model | Parameters: {num_params:,}")
+
     # 2. Setup FID & Dataset
     dataloader = get_dataloader(batch_size=batchsize, train=False)
     c, w, h = dataloader.dataset[0][0].shape
