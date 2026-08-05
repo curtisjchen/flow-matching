@@ -158,12 +158,15 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
     return epoch_loss_list
 
 def save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler):
+    raw_model = getattr(model, "_orig_mod", model)
+
     checkpoint = {
         'epoch': epoch, 'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'epoch_loss_list' : epoch_loss_list, 'scheduler_state_dict': scheduler.state_dict()
     }
-    torch.save(checkpoint, f"./checkpoints/{config_stem}_epoch_{epoch+1}.pt")
+    filepath = f"./checkpoints/{config_stem}_epoch_{epoch+1}.pt"
+    torch.save(checkpoint, filepath)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
