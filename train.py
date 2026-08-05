@@ -47,6 +47,11 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             config = yaml.safe_load(f)
 
     config_stem = Path(config_path).stem
+    if is_distributed:
+        if local_rank == 0:
+            get_dataloader(batch_size=config["training"]["batch_size"], train=True)
+        dist.barrier()
+        
     data = get_dataloader(batch_size=config["training"]["batch_size"], train=True)
     loss_type = config["training"].get("loss_type", "flow_matching")
     num_classes = config["model"]["num_classes"]
