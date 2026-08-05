@@ -51,7 +51,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         if local_rank == 0:
             get_dataloader(batch_size=config["training"]["batch_size"], train=True)
         dist.barrier()
-        
+
     data = get_dataloader(batch_size=config["training"]["batch_size"], train=True)
     loss_type = config["training"].get("loss_type", "flow_matching")
     num_classes = config["model"]["num_classes"]
@@ -159,6 +159,13 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                 
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
+
+            if is_distributed:
+                for p in model.parameters():
+                    if p.grad is not None:
+                        dist.all_reduce(p.grad, op=dist.ReduceOp.SUM)
+                        p.grad.div_(world_size)
+
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             scaler.step(optimizer)
             scaler.update()

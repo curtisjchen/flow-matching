@@ -59,7 +59,8 @@ def _sample_w(labels, w_min, w_max, device):
 
 def _make_cfg_fn(model, train_labels, pure_null_labels, w, w_reshaped):
     """Create f(z, r, t), the classifier-free-guided mean-velocity model."""
-
+    raw_model = getattr(model, "module", model)
+    raw_model = getattr(raw_model, "_orig_mod", raw_model)
     def f(z_in, r_in, t_in):
         z_double = torch.cat([z_in, z_in], dim=0)
         r_double = torch.cat([r_in, r_in], dim=0)
@@ -67,7 +68,7 @@ def _make_cfg_fn(model, train_labels, pure_null_labels, w, w_reshaped):
         labels_double = torch.cat([train_labels, pure_null_labels], dim=0)
         w_double = torch.cat([w, w], dim=0)
 
-        output_double = model(
+        output_double = raw_model(
             z_double, r_double, t_double, w=w_double, class_labels=labels_double
         )
         output_cond, output_uncond = output_double.chunk(2, dim=0)
