@@ -8,33 +8,62 @@ import yaml
 import argparse
 from pathlib import Path
 import time
+from datetime import timedelta
+
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 from evaluate import evaluate
 from generate import generate
 
 def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_scheduler=False, save_all=True):
-    os.makedirs("sample_images", exist_ok=True)
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-    print("Config:")
-    print(yaml.dump(config, default_flow_style=False))
+    is_distributed = "LOCAL_RANK" in os.environ
 
-    device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
-    device = torch.device(device_type)
-    print(f"Using device: {device}")
-    
+    if is_distributed:
+        # 1. Extended NCCL timeout to prevent crashes during long eval on Rank 0
+        dist.init_process_group(backend="nccl", timeout=timedelta(minutes=30))
+        local_rank = int(os.environ["LOCAL_RANK"])
+        world_size = dist.get_world_size()
+        torch.cuda.set_device(local_rank)
+        device = torch.device(f"cuda:{local_rank}")
+    else:
+        local_rank = 0
+        world_size = 1
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    device_type = 'cuda' if device.type == 'cuda' else 'cpu'
+
+    if local_rank == 0:
+        os.makedirs("sample_images", exist_ok=True)
+        os.makedirs("./checkpoints", exist_ok=True)
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+        print("Config:")
+        print(yaml.dump(config, default_flow_style=False))
+        print(f"Using device: {device} | Distributed: {is_distributed} (World Size: {world_size})")
+    else:
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+
     config_stem = Path(config_path).stem
     data = get_dataloader(batch_size=config["training"]["batch_size"], train=True)
     loss_type = config["training"].get("loss_type", "flow_matching")
     num_classes = config["model"]["num_classes"]
     
-    # 1. Build Model using shared util
     model = build_model(config).to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config["training"]["learning_rate"])
-    scaler = torch.amp.GradScaler('cuda', enabled=torch.cuda.is_available())
+    
+    # 2. Automatically scale LR for effective batch size across multiple GPUs
+    base_lr = config["training"]["learning_rate"]
+    effective_lr = base_lr * (world_size ** 0.5) if is_distributed else base_lr
+    if local_rank == 0 and is_distributed:
+        print(f"Base LR: {base_lr} -> Scaled Effective LR: {effective_lr:.6f}")
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=effective_lr)
+    
+    # T4 GPU: Retaining standard float16 GradScaler
+    scaler = torch.amp.GradScaler('cuda', enabled=device.type == 'cuda')
     
     epoch_loss_list = []
-    os.makedirs("./checkpoints", exist_ok=True)
     epochs = config["training"]["epochs"]
     warmup_epochs = config["training"]["warmup_epochs"]
     min_lr = config["training"].get("min_lr", 0)
@@ -47,38 +76,48 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs - warmup_epochs, eta_min=min_lr)
         scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs])
 
+    start_epoch = 0
     if resume_from:
         checkpoint = torch.load(resume_from, map_location=device, weights_only=True)
         if reset_scheduler:
             del checkpoint["scheduler_state_dict"]
-            print("scheduler reset")
+            if local_rank == 0: print("Scheduler reset!")
+            
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         epoch_loss_list = checkpoint.get('epoch_loss_list', [])
         start_epoch = checkpoint['epoch'] + 1
+        
         if 'scheduler_state_dict' in checkpoint:
             scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         else:
             for _ in range(start_epoch):
                 scheduler.step()
 
-    # model = torch.compile(model)
+    if is_distributed:
+        model = DDP(model, device_ids=[local_rank])
+
     compiled_mean_flow = torch.compile(mean_flow_loss)
     compiled_improved_mean_flow = torch.compile(improved_mean_flow_loss)
     compiled_flow_matching = torch.compile(flow_matching_loss)
 
-    for epoch in range(start_epoch if resume_from else 0, epochs):
+    for epoch in range(start_epoch, epochs):
         start = time.time()
-        epoch_loss = 0
+        local_epoch_loss = 0
         batch = 0
         model.train()
+
+        # Set sampler epoch for proper multi-GPU shuffling
+        if is_distributed and hasattr(data, "sampler") and hasattr(data.sampler, "set_epoch"):
+            data.sampler.set_epoch(epoch)
 
         for images, labels in data:
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
             raw_velocity_mse = None
             
-            with torch.autocast(device_type=device_type, dtype=torch.float16, enabled=torch.cuda.is_available()):
+            # T4 GPU: Autocast with FP16
+            with torch.autocast(device_type=device_type, dtype=torch.float16, enabled=device.type == 'cuda'):
                 if loss_type == "mean_flow":
                     loss, raw_velocity_mse, diagnostics = compiled_mean_flow(
                         model=model, x_1=images, labels=labels,
@@ -115,39 +154,51 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             scaler.step(optimizer)
             scaler.update()
-            batch += 1
             
-            if (batch + 1) % 100 == 0:
+            if (batch + 1) % 100 == 0 and local_rank == 0:
                 if raw_velocity_mse is None:
                     print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Loss: {loss:.4f}")
                 else:
-                    print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Objective: {loss:.4f} | Vel MSE: {raw_velocity_mse:.4f} | Max |dU/dr|: {diagnostics['max_abs_d_dr'].item():.2f}")
-            epoch_loss += (raw_velocity_mse if raw_velocity_mse is not None else loss).item()
+                    d_dr_val = diagnostics['max_abs_d_dr'].item() if torch.is_tensor(diagnostics['max_abs_d_dr']) else diagnostics['max_abs_d_dr']
+                    print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Objective: {loss:.4f} | Vel MSE: {raw_velocity_mse:.4f} | Max |dU/dr|: {d_dr_val:.2f}")
+
+            local_epoch_loss += (raw_velocity_mse if raw_velocity_mse is not None else loss).item()
+            batch += 1
             
-        avg_epoch_loss = epoch_loss / batch
+        # 3. Global DDP Loss Aggregation across GPUs
+        if is_distributed:
+            loss_tensor = torch.tensor([local_epoch_loss, batch], device=device, dtype=torch.float64)
+            dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
+            avg_epoch_loss = (loss_tensor[0] / loss_tensor[1]).item()
+        else:
+            avg_epoch_loss = local_epoch_loss / batch
+
         epoch_loss_list.append(avg_epoch_loss)
         elapsed = time.time() - start
-        
-        print(f"Epoch {epoch+1}/{epochs} | LR: {optimizer.param_groups[0]['lr']:.6f}| Loss: {avg_epoch_loss:.5f} | Time: {elapsed//60:.0f}m {elapsed%60:.0f}s")
-        peak_mem = torch.cuda.max_memory_allocated() / (1024 ** 3)
-        total_mem = torch.cuda.get_device_properties(device).total_memory / (1024 ** 3)
-        free_mem = total_mem - peak_mem
-                
-        print(f"GPU Memory: Peak {peak_mem:.2f} GB / Total {total_mem:.2f} GB | Free: {free_mem:.2f} GB")
+
+        if local_rank == 0:
+            print(f"Epoch {epoch+1}/{epochs} | LR: {optimizer.param_groups[0]['lr']:.6f} | Loss: {avg_epoch_loss:.5f} | Time: {elapsed//60:.0f}m {elapsed%60:.0f}s")
+            
+            peak_mem = torch.cuda.max_memory_allocated(device) / (1024 ** 3)
+            total_mem = torch.cuda.get_device_properties(device).total_memory / (1024 ** 3)
+            free_mem = total_mem - peak_mem
+            print(f"GPU Memory: Peak {peak_mem:.2f} GB / Total {total_mem:.2f} GB | Free: {free_mem:.2f} GB\n")
+
         torch.cuda.reset_peak_memory_stats(device)
-        # Save Checkpoint
-        if (epoch + 1) % 5 == 0 and save_all:
+
+        if (epoch + 1) % 5 == 0 and save_all and local_rank == 0:
             save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
             print(f"Epoch {epoch+1} Checkpoint Saved!")
 
         scheduler.step() 
 
-        # Generate & Eval
-        if (epoch + 1) % 10 == 0:
+        # Generate & Eval (Rank 0 Only)
+        if (epoch + 1) % 10 == 0 and local_rank == 0:
             print(f"\n--- Running Generation & Eval for Epoch {epoch+1} ---")
             n_steps = 32 if loss_type == "flow_matching" else 1
             
-            eval_model = getattr(model, "_orig_mod", model)
+            eval_model = model.module if hasattr(model, "module") else model
+            eval_model = getattr(eval_model, "_orig_mod", eval_model)
             eval_model.eval()
             
             gen_labels = (torch.arange(10 * num_classes) % num_classes).to(device)
@@ -162,21 +213,31 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                 samples=8192, cfg_scale=1.0, model=eval_model, suffix=f"epoch_{epoch+1}"
             )
             
-            # Make sure to put the COMPILED model back in train mode!
             model.train()
             print("--------------------------------------------------\n")
 
-    if not save_all:
-        save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
+        # Sync processes before starting next epoch
+        if is_distributed:
+            dist.barrier()
+
+    if not save_all and local_rank == 0:
+        save_checkpoint(epochs - 1, model, optimizer, epoch_loss_list, config_stem, scheduler)
+
+    if is_distributed:
+        dist.destroy_process_group()
+
     return epoch_loss_list
 
 def save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler):
-    raw_model = getattr(model, "_orig_mod", model)
+    raw_model = model.module if hasattr(model, "module") else model
+    raw_model = getattr(raw_model, "_orig_mod", raw_model)
 
     checkpoint = {
-        'epoch': epoch, 'model_state_dict': model.state_dict(),
+        'epoch': epoch, 
+        'model_state_dict': raw_model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
-        'epoch_loss_list' : epoch_loss_list, 'scheduler_state_dict': scheduler.state_dict()
+        'epoch_loss_list': epoch_loss_list, 
+        'scheduler_state_dict': scheduler.state_dict()
     }
     filepath = f"./checkpoints/{config_stem}_epoch_{epoch+1}.pt"
     torch.save(checkpoint, filepath)
