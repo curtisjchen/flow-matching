@@ -134,6 +134,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         free_mem = total_mem - peak_mem
                 
         print(f"GPU Memory: Peak {peak_mem:.2f} GB / Total {total_mem:.2f} GB | Free: {free_mem:.2f} GB")
+        torch.cuda.reset_peak_memory_stats(device)
         # Save Checkpoint
         if (epoch + 1) % 5 == 0 and save_all:
             save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
