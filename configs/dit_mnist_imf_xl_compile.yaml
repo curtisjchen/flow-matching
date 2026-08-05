@@ -1,7 +1,7 @@
 training:
   # Transformer comparison run; use this only after the U-Net smoke run.
   epochs: 300
-  loss_type: mean_flow
+  loss_type: improved_mean_flow
   batch_size: 512
   learning_rate: 3.0e-4
   min_lr: 1.0e-4
