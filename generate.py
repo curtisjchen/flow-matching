@@ -9,7 +9,7 @@ from solver import euler_solve, mean_flow_multistep_sample
 from utils import build_model
 
 @torch.inference_mode()
-def generate(config_path, n_steps, checkpoint_path=None, samples=16, labels=None, model=None, suffix=""):
+def generate(config_path, n_steps, checkpoint_path=None, samples=16, labels=None, cfg_scale=1.0, model=None, suffix=""):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
         
@@ -45,12 +45,12 @@ def generate(config_path, n_steps, checkpoint_path=None, samples=16, labels=None
     if loss_type == "flow_matching":
         sample = euler_solve(
             model=model, N=n_steps, shape=shape, labels=labels, 
-            w_val=3.0, null_class_idx=model.null_class_idx
+            w_val=cfg_scale, null_class_idx=model.null_class_idx
         )
     else:
         sample = mean_flow_multistep_sample(
             model=model, N=n_steps, shape=shape, labels=labels, 
-            w_val=3.0, null_class_idx=model.null_class_idx
+            w_val=cfg_scale, null_class_idx=model.null_class_idx
         )
 
     # 4. Denormalize and Save
