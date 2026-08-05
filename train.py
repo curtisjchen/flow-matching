@@ -113,9 +113,6 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             scaler.step(optimizer)
             scaler.update()
             batch += 1
-            print(scaler.get_scale())
-            if batch >= 5:
-                break
             
             if (batch + 1) % 100 == 0:
                 if raw_velocity_mse is None:
