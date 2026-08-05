@@ -16,11 +16,13 @@ model = build_model(config).to(device)
 x = torch.randn(4, 1, 28, 28, device=device)
 labels = torch.randint(0, config["model"]["num_classes"], (4,), device=device)
 
-with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+scaler = torch.cuda.amp.GradScaler()
+
+with torch.autocast(device_type=device_type, dtype=torch.float16):
     loss, raw_mse, diag = mean_flow_loss(model=model, x_1=x, labels=labels)
     print("loss dtype inside autocast:", loss.dtype)
 
-loss.backward()
+scaler.scale(loss).backward()
 print("OK:", loss.item())
 
 # --- Diagnostics: confirm bf16 casting actually reached model internals ---
@@ -34,7 +36,7 @@ with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
 if torch.cuda.is_available():
     from torch.profiler import profile, ProfilerActivity
 
-    h = torch.randn(4, model.patch_embed.num_patches, config["model"]["hidden_dim"], device=device, dtype=torch.bfloat16)
+    h = torch.randn(4, model.patch_embed.num_patches, config["model"]["hidden_dim"], device=device, dtype=torch.float16)
     block = model.ditblocks[0]
 
     with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
