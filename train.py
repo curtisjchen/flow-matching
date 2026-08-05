@@ -2,6 +2,7 @@ from data import get_dataloader
 from flow import flow_matching_loss
 from mean_flow import mean_flow_loss, improved_mean_flow_loss
 from utils import build_model
+from count_params import count_params
 import torch
 import os
 import yaml
@@ -51,6 +52,8 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
     num_classes = config["model"]["num_classes"]
     
     model = build_model(config).to(device)
+    if local_rank == 0:
+        print(count_params(config_path=config_path))
     
     # 2. Automatically scale LR for effective batch size across multiple GPUs
     base_lr = config["training"]["learning_rate"]

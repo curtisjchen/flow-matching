@@ -43,9 +43,12 @@ def sample_ordered_times(
 
 
 def _prepare_labels(labels, model, p_uncond, device):
+    raw_model = getattr(model, "module", model)
+    raw_model = getattr(raw_model, "_orig_mod", raw_model)
+    null_class_idx = raw_model.null_class_idx
     drop_mask = torch.rand(labels.shape[0], device=device) < p_uncond
-    train_labels = torch.where(drop_mask, model.null_class_idx, labels)
-    pure_null_labels = torch.full_like(labels, model.null_class_idx)
+    train_labels = torch.where(drop_mask, null_class_idx, labels)
+    pure_null_labels = torch.full_like(labels, null_class_idx)
     return train_labels, pure_null_labels
 
 
