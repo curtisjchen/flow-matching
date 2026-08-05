@@ -108,7 +108,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                         model=model, x_1=images, labels=labels,
                         p_uncond=config['model']['p_uncond'], w_min=config['model']['w_min'], w_max=config['model']['w_max']
                     )
-                    diagnostics = None
+                    diagnostics = {}
                 
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
@@ -118,15 +118,10 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             batch += 1
             
             if (batch + 1) % 100 == 0:
-                peak_mem = torch.cuda.max_memory_allocated() / (1024 ** 3)
-                total_mem = torch.cuda.get_device_properties(device).total_memory / (1024 ** 3)
-                free_mem = total_mem - peak_mem
-                
-                print(f"GPU Memory: Peak {peak_mem:.2f} GB / Total {total_mem:.2f} GB | Free: {free_mem:.2f} GB")
                 if raw_velocity_mse is None:
                     print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Loss: {loss:.4f}")
                 else:
-                    print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Objective: {loss:.4f} | Vel MSE: {raw_velocity_mse:.4f} | Max |dU/dr|: {diagnostics['max_abs_d_dr']:.2f}")
+                    print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Objective: {loss:.4f} | Vel MSE: {raw_velocity_mse:.4f} | Max |dU/dr|: {diagnostics['max_abs_d_dr'].item():.2f}")
             epoch_loss += (raw_velocity_mse if raw_velocity_mse is not None else loss).item()
             
         avg_epoch_loss = epoch_loss / batch
@@ -134,7 +129,11 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         elapsed = time.time() - start
         
         print(f"Epoch {epoch+1}/{epochs} | LR: {optimizer.param_groups[0]['lr']:.6f}| Loss: {avg_epoch_loss:.5f} | Time: {elapsed//60:.0f}m {elapsed%60:.0f}s")
-        
+        peak_mem = torch.cuda.max_memory_allocated() / (1024 ** 3)
+        total_mem = torch.cuda.get_device_properties(device).total_memory / (1024 ** 3)
+        free_mem = total_mem - peak_mem
+                
+        print(f"GPU Memory: Peak {peak_mem:.2f} GB / Total {total_mem:.2f} GB | Free: {free_mem:.2f} GB")
         # Save Checkpoint
         if (epoch + 1) % 5 == 0 and save_all:
             save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)

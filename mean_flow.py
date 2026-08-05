@@ -133,7 +133,7 @@ def mean_flow_loss(
         mean_velocity, target_mean_velocity, adaptive_loss_power, adaptive_loss_eps
     )
 
-    return loss, raw_mse, {"max_abs_d_dr": diag_max_d_dr.item()}
+    return loss, raw_mse, {"max_abs_d_dr": diag_max_d_dr}
 
 
 def improved_mean_flow_loss(
@@ -193,4 +193,4 @@ def improved_mean_flow_loss(
         v_pred, target_v, adaptive_loss_power, adaptive_loss_eps
     )
 
-    return loss, raw_mse, {"max_abs_d_dr": diag_max_d_dr.item()}
+    return loss, raw_mse, {"max_abs_d_dr": diag_max_d_dr}
