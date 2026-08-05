@@ -161,10 +161,17 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             scaler.unscale_(optimizer)
 
             if is_distributed:
-                for p in model.parameters():
-                    if p.grad is not None:
-                        dist.all_reduce(p.grad, op=dist.ReduceOp.SUM)
-                        p.grad.div_(world_size)
+                grads = [p.grad for p in model.parameters() if p.grad is not None]
+                if grads:
+                    flat_grad = torch.cat([g.view(-1) for g in grads])
+                    dist.all_reduce(flat_grad, op=dist.ReduceOp.SUM)
+                    flat_grad.div_(world_size)
+                    
+                    offset = 0
+                    for g in grads:
+                        numel = g.numel()
+                        g.copy_(flat_grad[offset : offset + numel].view_as(g))
+                        offset += numel
 
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             scaler.step(optimizer)
