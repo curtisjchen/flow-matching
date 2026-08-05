@@ -19,8 +19,9 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         config = yaml.safe_load(f)
     print("Config:")
     print(yaml.dump(config, default_flow_style=False))
-    
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = torch.device(device_type)
     print(f"Using device: {device}")
     
     config_stem = Path(config_path).stem
@@ -73,36 +74,37 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             optimizer.zero_grad()
             raw_velocity_mse = None
             
-            if loss_type == "mean_flow":
-                loss, raw_velocity_mse, diagnostics = mean_flow_loss(
-                    model=model, x_1=images, labels=labels,
-                    p_rt=config['training'].get('p_rt', 0.5), p_uncond=config['model']['p_uncond'],
-                    w_min=config['model']['w_min'], w_max=config['model']['w_max'],
-                    adaptive_loss_power=config['training'].get('adaptive_loss_power', 1.0),
-                    adaptive_loss_eps=config['training'].get('adaptive_loss_eps', 1e-2),
-                    time_sampler=config['training'].get('time_sampler', 'uniform'),
-                    logit_normal_mean=config['training'].get('logit_normal_mean', -0.4),
-                    logit_normal_std=config['training'].get('logit_normal_std', 1.0),
-                    clamp_d_dr=config['training'].get('clamp_d_dr', None),
-                )
-            elif loss_type == "improved_mean_flow":
-                loss, raw_velocity_mse, diagnostics = improved_mean_flow_loss(
-                    model=model, x_1=images, labels=labels,
-                    p_rt=config['training'].get('p_rt', 0.5), p_uncond=config['model']['p_uncond'],
-                    w_min=config['model']['w_min'], w_max=config['model']['w_max'],
-                    adaptive_loss_power=config['training'].get('adaptive_loss_power', 1.0),
-                    adaptive_loss_eps=config['training'].get('adaptive_loss_eps', 1e-2),
-                    time_sampler=config['training'].get('time_sampler', 'uniform'),
-                    logit_normal_mean=config['training'].get('logit_normal_mean', -0.4),
-                    logit_normal_std=config['training'].get('logit_normal_std', 1.0),
-                    clamp_d_dr=config['training'].get('clamp_d_dr', None),
-                )
-            else:
-                loss = flow_matching_loss(
-                    model=model, x_1=images, labels=labels,
-                    p_uncond=config['model']['p_uncond'], w_min=config['model']['w_min'], w_max=config['model']['w_max']
-                )
-                diagnostics = None
+            with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+                if loss_type == "mean_flow":
+                    loss, raw_velocity_mse, diagnostics = mean_flow_loss(
+                        model=model, x_1=images, labels=labels,
+                        p_rt=config['training'].get('p_rt', 0.5), p_uncond=config['model']['p_uncond'],
+                        w_min=config['model']['w_min'], w_max=config['model']['w_max'],
+                        adaptive_loss_power=config['training'].get('adaptive_loss_power', 1.0),
+                        adaptive_loss_eps=config['training'].get('adaptive_loss_eps', 1e-2),
+                        time_sampler=config['training'].get('time_sampler', 'uniform'),
+                        logit_normal_mean=config['training'].get('logit_normal_mean', -0.4),
+                        logit_normal_std=config['training'].get('logit_normal_std', 1.0),
+                        clamp_d_dr=config['training'].get('clamp_d_dr', None),
+                    )
+                elif loss_type == "improved_mean_flow":
+                    loss, raw_velocity_mse, diagnostics = improved_mean_flow_loss(
+                        model=model, x_1=images, labels=labels,
+                        p_rt=config['training'].get('p_rt', 0.5), p_uncond=config['model']['p_uncond'],
+                        w_min=config['model']['w_min'], w_max=config['model']['w_max'],
+                        adaptive_loss_power=config['training'].get('adaptive_loss_power', 1.0),
+                        adaptive_loss_eps=config['training'].get('adaptive_loss_eps', 1e-2),
+                        time_sampler=config['training'].get('time_sampler', 'uniform'),
+                        logit_normal_mean=config['training'].get('logit_normal_mean', -0.4),
+                        logit_normal_std=config['training'].get('logit_normal_std', 1.0),
+                        clamp_d_dr=config['training'].get('clamp_d_dr', None),
+                    )
+                else:
+                    loss = flow_matching_loss(
+                        model=model, x_1=images, labels=labels,
+                        p_uncond=config['model']['p_uncond'], w_min=config['model']['w_min'], w_max=config['model']['w_max']
+                    )
+                    diagnostics = None
                 
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)

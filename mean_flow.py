@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-
+from torch.nn.attention import sdpa_kernel, SDPBackend
 
 def improved_velocity_from_mean_velocity(
     mean_velocity: torch.Tensor,
@@ -115,11 +115,12 @@ def mean_flow_loss(
     w, w_reshaped = _sample_w(labels, w_min, w_max, device)
     f = _make_cfg_fn(model, train_labels, pure_null_labels, w, w_reshaped)
 
-    mean_velocity, d_mean_velocity_dr = torch.func.jvp(
-        f,
-        (z_r, r, t),
-        (velocity, torch.ones_like(r), torch.zeros_like(t)),
-    )
+    with sdpa_kernel(SDPBackend.MATH):
+        mean_velocity, d_mean_velocity_dr = torch.func.jvp(
+            f,
+            (z_r, r, t),
+            (velocity, torch.ones_like(r), torch.zeros_like(t)),
+        )
 
     diag_max_d_dr = d_mean_velocity_dr.detach().abs().max()
 
@@ -169,11 +170,12 @@ def improved_mean_flow_loss(
 
     boundary_velocity = f(z_r, r, r).detach()
 
-    mean_velocity, d_mean_velocity_dr = torch.func.jvp(
-        f,
-        (z_r, r, t),
-        (boundary_velocity, torch.ones_like(r), torch.zeros_like(t)),
-    )
+    with sdpa_kernel(SDPBackend.MATH):
+        mean_velocity, d_mean_velocity_dr = torch.func.jvp(
+            f,
+            (z_r, r, t),
+            (boundary_velocity, torch.ones_like(r), torch.zeros_like(t)),
+        )
 
     diag_max_d_dr = d_mean_velocity_dr.detach().abs().max()
 

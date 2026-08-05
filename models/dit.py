@@ -52,7 +52,7 @@ class DiTBlock(nn.Module):
 
         h = self.ln1(image)
         h = h * (1 + scale1) + shift1
-        image = image + gate1 * self.attention(h, h, h)[0]
+        image = image + gate1 * self.attention(h, h, h, need_weights=False)[0]
 
         h = self.ln2(image)
         h = h * (1 + scale2) + shift2
