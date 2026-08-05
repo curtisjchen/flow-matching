@@ -32,6 +32,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
     # 1. Build Model using shared util
     model = build_model(config).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["training"]["learning_rate"])
+    scaler = torch.amp.GradScaler('cuda', enabled=torch.cuda.is_available())
     
     epoch_loss_list = []
     os.makedirs("./checkpoints", exist_ok=True)
@@ -74,7 +75,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             optimizer.zero_grad()
             raw_velocity_mse = None
             
-            with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+            with torch.autocast(device_type=device_type, dtype=torch.float16, enabled=torch.cuda.is_available()):
                 if loss_type == "mean_flow":
                     loss, raw_velocity_mse, diagnostics = mean_flow_loss(
                         model=model, x_1=images, labels=labels,
@@ -106,10 +107,15 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                     )
                     diagnostics = None
                 
-            loss.backward()
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
             batch += 1
+            print(scaler.get_scale())
+            if batch >= 5:
+                break
             
             if (batch + 1) % 100 == 0:
                 if raw_velocity_mse is None:
