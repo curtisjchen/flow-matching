@@ -18,19 +18,20 @@ labels = torch.randint(0, config["model"]["num_classes"], (4,), device=device)
 
 with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
     loss, raw_mse, diag = mean_flow_loss(model=model, x_1=x, labels=labels)
-    print("loss dtype inside autocast:", loss.dtype)  # bf16 autocast keeps reductions in fp32 by default, so this being float32 is expected and fine
+    print("loss dtype inside autocast:", loss.dtype)
 
 loss.backward()
 print("OK:", loss.item())
 
 # --- Diagnostics: confirm bf16 casting actually reached model internals ---
-if torch.cuda.is_available():
-    with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-        with torch.no_grad():
-            probe_out = model.patch_embed(x)
-            print("patch_embed output dtype:", probe_out.dtype)  # expect torch.bfloat16 if casting is active
+# (works on both CPU and CUDA — moved out of the CUDA-only gate)
+with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+    with torch.no_grad():
+        probe_out = model.patch_embed(x)
+        print("patch_embed output dtype:", probe_out.dtype)  # expect torch.bfloat16 if casting is active
 
-    # --- Diagnostics: which SDPA backend does this model's attention actually hit? ---
+# --- The rest below is CUDA-only (SDPA backend selection has no CPU flash/efficient kernels) ---
+if torch.cuda.is_available():
     from torch.profiler import profile, ProfilerActivity
 
     h = torch.randn(4, model.patch_embed.num_patches, config["model"]["hidden_dim"], device=device, dtype=torch.bfloat16)
@@ -42,7 +43,6 @@ if torch.cuda.is_available():
     print("\n--- Attention backend trace (outside JVP) ---")
     print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=5))
 
-    # --- Confirm MATH backend is actually forced inside the JVP-traced region ---
     from torch.nn.attention import sdpa_kernel, SDPBackend
     import torch.nn.functional as F
 
@@ -57,4 +57,4 @@ if torch.cuda.is_available():
         except Exception as e:
             print(f"{backend}: NOT supported — {e}")
 else:
-    print("\n(Skipping GPU-specific dtype/backend diagnostics — no CUDA device available)")
+    print("\n(Skipping GPU-specific SDPA backend diagnostics — no CUDA device available)")
