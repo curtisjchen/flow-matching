@@ -62,7 +62,10 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             for _ in range(start_epoch):
                 scheduler.step()
 
-    model = torch.compile(model)
+    # model = torch.compile(model)
+    compiled_mean_flow = torch.compile(mean_flow_loss)
+    compiled_improved_mean_flow = torch.compile(improved_mean_flow_loss)
+    compiled_flow_matching = torch.compile(flow_matching_loss)
 
     for epoch in range(start_epoch if resume_from else 0, epochs):
         start = time.time()
@@ -77,7 +80,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             
             with torch.autocast(device_type=device_type, dtype=torch.float16, enabled=torch.cuda.is_available()):
                 if loss_type == "mean_flow":
-                    loss, raw_velocity_mse, diagnostics = mean_flow_loss(
+                    loss, raw_velocity_mse, diagnostics = compiled_mean_flow(
                         model=model, x_1=images, labels=labels,
                         p_rt=config['training'].get('p_rt', 0.5), p_uncond=config['model']['p_uncond'],
                         w_min=config['model']['w_min'], w_max=config['model']['w_max'],
@@ -89,7 +92,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                         clamp_d_dr=config['training'].get('clamp_d_dr', None),
                     )
                 elif loss_type == "improved_mean_flow":
-                    loss, raw_velocity_mse, diagnostics = improved_mean_flow_loss(
+                    loss, raw_velocity_mse, diagnostics = compiled_improved_mean_flow(
                         model=model, x_1=images, labels=labels,
                         p_rt=config['training'].get('p_rt', 0.5), p_uncond=config['model']['p_uncond'],
                         w_min=config['model']['w_min'], w_max=config['model']['w_max'],
@@ -101,7 +104,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                         clamp_d_dr=config['training'].get('clamp_d_dr', None),
                     )
                 else:
-                    loss = flow_matching_loss(
+                    loss = compiled_flow_matching(
                         model=model, x_1=images, labels=labels,
                         p_uncond=config['model']['p_uncond'], w_min=config['model']['w_min'], w_max=config['model']['w_max']
                     )
@@ -115,6 +118,11 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             batch += 1
             
             if (batch + 1) % 100 == 0:
+                peak_mem = torch.cuda.max_memory_allocated() / (1024 ** 3)
+                total_mem = torch.cuda.get_device_properties(device).total_memory / (1024 ** 3)
+                free_mem = total_mem - peak_mem
+                
+                print(f"GPU Memory: Peak {peak_mem:.2f} GB / Total {total_mem:.2f} GB | Free: {free_mem:.2f} GB")
                 if raw_velocity_mse is None:
                     print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Loss: {loss:.4f}")
                 else:
@@ -139,18 +147,23 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             print(f"\n--- Running Generation & Eval for Epoch {epoch+1} ---")
             n_steps = 32 if loss_type == "flow_matching" else 1
             
-            # Use active model from memory (avoids loading checkpoint again)
+            eval_model = getattr(model, "_orig_mod", model)
+            eval_model.eval()
+            
             gen_labels = (torch.arange(10 * num_classes) % num_classes).to(device)
             
             generate(
                 config_path=config_path, n_steps=n_steps, samples=len(gen_labels),
-                labels=gen_labels, model=model, suffix=f"epoch_{epoch+1}"
+                labels=gen_labels, model=eval_model, suffix=f"epoch_{epoch+1}"
             )
             
             evaluate(
                 config_path=config_path, step_counts=[n_steps], batchsize=256, 
-                samples=1024, cfg_scale=1.0, model=model, suffix=f"epoch_{epoch+1}"
+                samples=8192, cfg_scale=1.0, model=eval_model, suffix=f"epoch_{epoch+1}"
             )
+            
+            # Make sure to put the COMPILED model back in train mode!
+            model.train()
             print("--------------------------------------------------\n")
 
     if not save_all:
