@@ -71,10 +71,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
     
     # 2. Automatically scale LR for effective batch size across multiple GPUs
     base_lr = config["training"]["learning_rate"]
-    if local_rank == 0 and is_distributed:
-        print(f"Base LR: {base_lr} -> Scaled Effective LR: {effective_lr:.6f}")
-
-    optimizer = torch.optim.AdamW(model.parameters(), lr=effective_lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=base_lr)
     
     # T4 GPU: Retaining standard float16 GradScaler
     scaler = torch.amp.GradScaler('cuda', enabled=device.type == 'cuda')
