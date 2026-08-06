@@ -59,7 +59,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
     if is_distributed:
         if local_rank == 0:
             get_dataloader(batch_size=config["training"]["batch_size"], train=True)
-        dist.barrier()
+        dist.barrier(device_ids=[local_rank])
 
     data = get_dataloader(batch_size=config["training"]["batch_size"], train=True)
     loss_type = config["training"].get("loss_type", "flow_matching")
@@ -235,7 +235,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
 
         # Sync processes before starting next epoch
         if is_distributed:
-            dist.barrier()
+            dist.barrier(device_ids=[local_rank])
 
     if not save_all and local_rank == 0:
         save_checkpoint(epochs - 1, model, optimizer, epoch_loss_list, config_stem, scheduler)
