@@ -102,32 +102,12 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             for _ in range(start_epoch):
                 scheduler.step()
 
-
-    def register_ddp_hooks(model, world_size):
-        handles = []
-        def make_hook(param):
-            def hook(grad):
-                if grad is None:
-                    return grad
-                
-                grad = grad.contiguous()
-                
-                handle = dist.all_reduce(grad, op=dist.ReduceOp.SUM, async_op=True)
-                handles.append((handle, grad))
-                
-                return grad
-            return hook
-            
-        for p in model.parameters():
-            if p.requires_grad:
-                p.register_hook(make_hook(p))
-        return handles
-
-    handles = register_ddp_hooks(model, world_size)
-
     compiled_mean_flow = torch.compile(mean_flow_loss)
     compiled_improved_mean_flow = torch.compile(improved_mean_flow_loss)
     compiled_flow_matching = torch.compile(flow_matching_loss)
+
+    if is_distributed:
+        model = DDP(model, device_ids=[local_rank], output_device=local_rank)
 
     for epoch in range(start_epoch, epochs):
         start = time.time()
@@ -177,11 +157,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                     )
                     diagnostics = {}
                 
-            scaler.scale(loss).backward()  # hooks fire async during this call
-            for handle, grad in handles:
-                handle.wait()
-                grad.div_(world_size)
-            handles.clear()
+            scaler.scale(loss).backward()  
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             scaler.step(optimizer)
