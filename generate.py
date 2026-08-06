@@ -9,7 +9,7 @@ from solver import euler_solve, mean_flow_multistep_sample
 from utils import build_model
 
 @torch.inference_mode()
-def generate(config_path, n_steps, checkpoint_path=None, samples=16, labels=None, cfg_scale=1.0, model=None, suffix=""):
+def generate(config_path, n_steps, checkpoint_path=None, samples=16, labels=None, cfg_scale=1.0, model=None, suffix="", compile_model=True):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
         
@@ -25,9 +25,10 @@ def generate(config_path, n_steps, checkpoint_path=None, samples=16, labels=None
         model.load_state_dict(checkpoint['model_state_dict'])
     
     model.eval()
-    
-    print("Compiling model for inference...")
-    model = torch.compile(model, mode="reduce-overhead")
+
+    if compile_model:
+        print("Compiling model for inference...")
+        model = torch.compile(model, mode="reduce-overhead")
 
     if labels is None:
         labels = torch.full((samples,), model.null_class_idx, dtype=torch.long, device=device)

@@ -46,7 +46,7 @@ def _setup_fid_real_features(fid, dataloader, device, cache_path="fid_real_cache
     return fid
 
 @torch.inference_mode()
-def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samples=1000, cfg_scale=1.0, model=None, suffix=""):
+def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samples=1000, cfg_scale=1.0, model=None, suffix="", compile_model=True):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
         
@@ -64,9 +64,10 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
         model.load_state_dict(checkpoint["model_state_dict"])
     
     model.eval()
-    
-    print("Compiling model for inference...")
-    model = torch.compile(model, mode="reduce-overhead")
+
+    if compile_model:
+        print("Compiling model for inference...")
+        model = torch.compile(model, mode="reduce-overhead")
 
     num_params = sum(p.numel() for p in model.parameters())
     print(f"Evaluating Model | Parameters: {num_params:,}")

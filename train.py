@@ -209,7 +209,9 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         scheduler.step() 
 
         # Generate & Eval (Rank 0 Only)
-        if (epoch + 1) % 10 == 0 and local_rank == 0:
+        eval_freq = 30 if loss_type == "flow_matching" else 10
+
+        if (epoch + 1) % eval_freq == 0 and local_rank == 0:
             print(f"\n--- Running Generation & Eval for Epoch {epoch+1} ---")
             n_steps = 16 if loss_type == "flow_matching" else 1
             
@@ -222,12 +224,14 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             with patch('torch.distributed.is_initialized', return_value=False):
                 generate(
                     config_path=config_path, n_steps=n_steps, samples=len(gen_labels), cfg_scale=1.0,
-                    labels=gen_labels, model=eval_model, suffix=f"epoch_{epoch+1}"
+                    labels=gen_labels, model=eval_model, suffix=f"epoch_{epoch+1}", compile_model=False
                 )
+
                 
                 evaluate(
                     config_path=config_path, step_counts=[n_steps], batchsize=256,  
-                    samples=8192, cfg_scale=1.0, model=eval_model, suffix=f"epoch_{epoch+1}"
+                    samples=8192, cfg_scale=1.0, model=eval_model, suffix=f"epoch_{epoch+1}",
+                    compile_model=False
                 )
             
             model.train()
