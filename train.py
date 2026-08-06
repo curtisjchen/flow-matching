@@ -71,7 +71,6 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
     
     # 2. Automatically scale LR for effective batch size across multiple GPUs
     base_lr = config["training"]["learning_rate"]
-    effective_lr = base_lr * (world_size ** 0.5) if is_distributed else base_lr
     if local_rank == 0 and is_distributed:
         print(f"Base LR: {base_lr} -> Scaled Effective LR: {effective_lr:.6f}")
 
