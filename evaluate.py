@@ -7,6 +7,7 @@ import json
 import math
 from pathlib import Path
 from datetime import datetime
+from torch.utils.data import DataLoader
 
 from torchmetrics.image.fid import FrechetInceptionDistance
 from data import get_dataloader
@@ -68,7 +69,14 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
     print(f"Evaluating Model | Parameters: {num_params:,}")
 
     # 2. Setup FID & Dataset
-    dataloader = get_dataloader(batch_size=batchsize, train=False)
+    temp_loader = get_dataloader(batch_size=batchsize, train=False)
+    dataloader = DataLoader(
+        temp_loader.dataset, 
+        batch_size=batchsize, 
+        shuffle=False, 
+        num_workers=temp_loader.num_workers
+    )
+
     c, w, h = dataloader.dataset[0][0].shape
     fid = FrechetInceptionDistance(feature=2048, normalize=True, input_img_size=(3, w, h), reset_real_features=False)
     fid = fid.to(device)
