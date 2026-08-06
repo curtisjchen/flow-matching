@@ -17,16 +17,23 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from evaluate import evaluate
 from generate import generate
 
+import logging
+logging.getLogger("torch._inductor.utils").setLevel(logging.ERROR)
+
 def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_scheduler=False, save_all=True):
     is_distributed = "LOCAL_RANK" in os.environ
 
     if is_distributed:
-        # 1. Extended NCCL timeout to prevent crashes during long eval on Rank 0
-        dist.init_process_group(backend="nccl", timeout=timedelta(minutes=30))
         local_rank = int(os.environ["LOCAL_RANK"])
-        world_size = dist.get_world_size()
-        torch.cuda.set_device(local_rank)
         device = torch.device(f"cuda:{local_rank}")
+        torch.cuda.set_device(device)
+        
+        dist.init_process_group(
+            backend="nccl", 
+            timeout=timedelta(minutes=30), 
+            device_id=device
+        )
+        world_size = dist.get_world_size()
     else:
         local_rank = 0
         world_size = 1
