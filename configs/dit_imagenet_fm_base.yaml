@@ -1,10 +1,10 @@
 training:
   epochs: 300
-  loss_type: improved_mean_flow
-  batch_size: 128
-  learning_rate: 3.0e-4
+  loss_type: flow_matching
+  batch_size: 512
+  learning_rate: 1.0e-4
   min_lr: 1.0e-4
-  warmup_epochs: 3
+  warmup_epochs: 5
   p_rt: 0.5
   adaptive_loss_power: 1.0
   adaptive_loss_eps: 1.0e-2
@@ -14,7 +14,7 @@ training:
 
 model:
   type: dit
-  hidden_dim: 128
+  hidden_dim: 192
   num_heads: 4
   num_layers: 6
   patch_size: 2

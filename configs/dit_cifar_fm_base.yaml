@@ -1,0 +1,32 @@
+# config_cifar10_uncond.yaml
+
+training:
+  epochs: 300
+  loss_type: flow_matching     # Switch to improved_mean_flow for the IMF run
+  cfg_aware_loss: False        # Single-pass loss execution for unconditional training
+  batch_size: 512              # Per-GPU (512 * 2 GPUs = 1024 global effective batch)
+  learning_rate: 5.0e-4
+  min_lr: 5.0e-4
+  warmup_epochs: 5
+  p_rt: 0.5
+  adaptive_loss_power: 1.0
+  adaptive_loss_eps: 1.0e-2
+  time_sampler: logit_normal
+  logit_normal_mean: -0.4
+  logit_normal_std: 1.0
+
+model:
+  type: dit
+  hidden_dim: 192
+  num_heads: 4
+  num_layers: 6
+  patch_size: 2
+  in_channels: 3
+  c: 3
+  w: 32
+  h: 32
+  image_size: 32
+  w_min: 1.0
+  w_max: 3.0
+  p_uncond: 1.0
+  num_classes: 10

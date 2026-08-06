@@ -76,6 +76,16 @@ def _make_cfg_fn(model, train_labels, pure_null_labels, w, w_reshaped):
 
     return f
 
+def _make_standard_fn(model, train_labels, w):
+    """Create f(z, r, t) using a standard, single-batch forward pass for fast training."""
+    raw_model = getattr(model, "module", model)
+    raw_model = getattr(raw_model, "_orig_mod", raw_model)
+    
+    def f(z_in, r_in, t_in):
+        # Single forward pass at batch size N (No double batching!)
+        return raw_model(z_in, r_in, t_in, w=w, class_labels=train_labels)
+
+    return f
 
 def _adaptive_velocity_loss(prediction, target, power, eps):
     """Paper-style per-example adaptive L2 loss plus an interpretable raw MSE."""
@@ -100,6 +110,7 @@ def mean_flow_loss(
     logit_normal_mean=-0.4,
     logit_normal_std=1.0,
     clamp_d_dr=None,
+    cfg_aware_loss=True
 ):
 
     device = x_1.device
@@ -117,7 +128,11 @@ def mean_flow_loss(
 
     train_labels, pure_null_labels = _prepare_labels(labels, model, p_uncond, device)
     w, w_reshaped = _sample_w(labels, w_min, w_max, device)
-    f = _make_cfg_fn(model, train_labels, pure_null_labels, w, w_reshaped)
+
+    if cfg_aware_loss:
+        f = _make_cfg_fn(model, train_labels, pure_null_labels, w, w_reshaped)
+    else:
+        f = _make_standard_fn(model, train_labels, w)
 
     with sdpa_kernel(SDPBackend.MATH):
         mean_velocity, d_mean_velocity_dr = torch.func.jvp(
@@ -154,6 +169,7 @@ def improved_mean_flow_loss(
     logit_normal_mean=-0.4,
     logit_normal_std=1.0,
     clamp_d_dr=None,
+    cfg_aware_loss=True
 ):
     device = x_1.device
     batch_size = x_1.shape[0]
@@ -170,7 +186,10 @@ def improved_mean_flow_loss(
 
     train_labels, pure_null_labels = _prepare_labels(labels, model, p_uncond, device)
     w, w_reshaped = _sample_w(labels, w_min, w_max, device)
-    f = _make_cfg_fn(model, train_labels, pure_null_labels, w, w_reshaped)
+    if cfg_aware_loss:
+        f = _make_cfg_fn(model, train_labels, pure_null_labels, w, w_reshaped)
+    else:
+        f = _make_standard_fn(model, train_labels, w)
 
     boundary_velocity = f(z_r, r, r).detach()
 

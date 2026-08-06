@@ -27,13 +27,21 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
 
     if is_distributed:
         local_rank = int(os.environ["LOCAL_RANK"])
-        device = torch.device(f"cuda:{local_rank}")
-        torch.cuda.set_device(device)
         
+        if torch.cuda.is_available():
+            device = torch.device(f"cuda:{local_rank}")
+            torch.cuda.set_device(device)
+            backend = "nccl"
+            device_id = device
+        else:
+            device = torch.device("cpu")
+            backend = "gloo"  # NCCL fails on CPU
+            device_id = None
+
         dist.init_process_group(
-            backend="nccl", 
+            backend=backend, 
             timeout=timedelta(minutes=30), 
-            device_id=device
+            device_id=device_id
         )
         world_size = dist.get_world_size()
     else:
@@ -64,6 +72,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
     data = get_dataloader(batch_size=config["training"]["batch_size"], train=True)
     loss_type = config["training"].get("loss_type", "flow_matching")
     num_classes = config["model"]["num_classes"]
+    cfg_aware_loss = config["model"].get("cfg_aware_loss", True)
     
     model = build_model(config).to(device)
     if local_rank == 0:
@@ -142,6 +151,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                         logit_normal_mean=config['training'].get('logit_normal_mean', -0.4),
                         logit_normal_std=config['training'].get('logit_normal_std', 1.0),
                         clamp_d_dr=config['training'].get('clamp_d_dr', None),
+                        cfg_aware_loss=cfg_aware_loss
                     )
                 elif loss_type == "improved_mean_flow":
                     loss, raw_velocity_mse, diagnostics = compiled_improved_mean_flow(
@@ -154,11 +164,15 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                         logit_normal_mean=config['training'].get('logit_normal_mean', -0.4),
                         logit_normal_std=config['training'].get('logit_normal_std', 1.0),
                         clamp_d_dr=config['training'].get('clamp_d_dr', None),
+                        cfg_aware_loss=cfg_aware_loss
                     )
                 else:
                     loss = compiled_flow_matching(
                         model=model, x_1=images, labels=labels,
-                        p_uncond=config['model']['p_uncond'], w_min=config['model']['w_min'], w_max=config['model']['w_max']
+                        p_uncond=config['model']['p_uncond'], 
+                        w_min=config['model']['w_min'], 
+                        w_max=config['model']['w_max'],
+                        
                     )
                     diagnostics = {}
                 

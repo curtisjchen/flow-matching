@@ -11,6 +11,7 @@ training:
   time_sampler: logit_normal
   logit_normal_mean: -0.4
   logit_normal_std: 1.0
+  cfg_aware_loss: True
 
 model:
   type: dit
