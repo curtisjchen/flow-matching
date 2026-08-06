@@ -103,20 +103,21 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                 scheduler.step()
 
 
-    if is_distributed:
-        for p in model.parameters():
-            dist.broadcast(p.data, src=0)
-        for b in model.buffers():
-            dist.broadcast(b.data, src=0)
-            
     def register_ddp_hooks(model, world_size):
         handles = []
         def make_hook(param):
             def hook(grad):
+                if grad is None:
+                    return grad
+                
+                grad = grad.contiguous()
+                
                 handle = dist.all_reduce(grad, op=dist.ReduceOp.SUM, async_op=True)
                 handles.append((handle, grad))
+                
                 return grad
             return hook
+            
         for p in model.parameters():
             if p.requires_grad:
                 p.register_hook(make_hook(p))
