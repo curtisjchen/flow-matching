@@ -185,9 +185,9 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             scaler.step(optimizer)
             scaler.update()
-            
-            if (batch + 1) % 100 == 0 and local_rank == 0:
+            if (batch + 1) % 5 == 0 and local_rank == 0:
                 print(f"backward: {(t1-t0)*1000:.1f}ms | sync: {(t2-t1)*1000:.1f}ms | sync fraction: {(t2-t1)/(t2-t0)*100:.1f}%")
+            if (batch + 1) % 100 == 0 and local_rank == 0:
                 if raw_velocity_mse is None:
                     print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Loss: {loss:.4f}")
                 else:
