@@ -13,7 +13,8 @@ def flow_matching_loss(model, x_1, labels, p_uncond=0.1, w_min=1.0, w_max=5.0):
     v_target = x_1 - x_0
 
     drop_mask = torch.rand(b, device=device) < p_uncond
-    train_labels = torch.where(drop_mask, model.null_class_idx, labels)
+    null_idx = model.module.null_class_idx if hasattr(model, "module") else model.null_class_idx
+    train_labels = torch.where(drop_mask, null_idx, labels)
 
     u = torch.rand(b, device=device)
     w = w_min + u * (w_max - w_min)
