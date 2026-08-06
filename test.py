@@ -6,7 +6,7 @@ from mean_flow import mean_flow_loss
 import os
 import yaml
 
-with open("configs/dit_mnist_imf_xl_compile", "r") as f:
+with open("configs/dit_mnist_imf_xl_compile.yaml", "r") as f:
     config = yaml.safe_load(f)
 
 dist.init_process_group(backend="nccl")
