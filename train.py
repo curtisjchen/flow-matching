@@ -102,8 +102,27 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             for _ in range(start_epoch):
                 scheduler.step()
 
+
     if is_distributed:
-        model = DDP(model, device_ids=[local_rank])
+        for p in model.parameters():
+            dist.broadcast(p.data, src=0)
+        for b in model.buffers():
+            dist.broadcast(b.data, src=0)
+            
+    def register_ddp_hooks(model, world_size):
+        handles = []
+        def make_hook(param):
+            def hook(grad):
+                handle = dist.all_reduce(grad, op=dist.ReduceOp.SUM, async_op=True)
+                handles.append((handle, grad))
+                return grad
+            return hook
+        for p in model.parameters():
+            if p.requires_grad:
+                p.register_hook(make_hook(p))
+        return handles
+
+    handles = register_ddp_hooks(model, world_size)
 
     compiled_mean_flow = torch.compile(mean_flow_loss)
     compiled_improved_mean_flow = torch.compile(improved_mean_flow_loss)
@@ -157,37 +176,17 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                     )
                     diagnostics = {}
                 
-            # inside the batch loop, replace the backward/sync section with:
-            torch.cuda.synchronize()
-            t0 = time.time()
-
-            scaler.scale(loss).backward()
-
-            torch.cuda.synchronize()
-            t1 = time.time()
-
-            if is_distributed:
-                grads = [p.grad for p in model.parameters() if p.grad is not None]
-                if grads:
-                    flat_grad = torch.cat([g.view(-1) for g in grads])
-                    dist.all_reduce(flat_grad, op=dist.ReduceOp.SUM)
-                    flat_grad.div_(world_size)
-                    offset = 0
-                    for g in grads:
-                        numel = g.numel()
-                        g.copy_(flat_grad[offset : offset + numel].view_as(g))
-                        offset += numel
-
-            torch.cuda.synchronize()
-            t2 = time.time()
-
+            scaler.scale(loss).backward()  # hooks fire async during this call
+            for handle, grad in handles:
+                handle.wait()
+                grad.div_(world_size)
+            handles.clear()
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             scaler.step(optimizer)
             scaler.update()
-            if (batch + 1) % 5 == 0 and local_rank == 0:
-                print(f"backward: {(t1-t0)*1000:.1f}ms | sync: {(t2-t1)*1000:.1f}ms | sync fraction: {(t2-t1)/(t2-t0)*100:.1f}%")
-            if (batch + 1) % 100 == 0 and local_rank == 0:
+
+            if (batch + 1) % 50 == 0 and local_rank == 0:
                 if raw_velocity_mse is None:
                     print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Loss: {loss:.4f}")
                 else:
@@ -197,7 +196,6 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             local_epoch_loss += (raw_velocity_mse if raw_velocity_mse is not None else loss).item()
             batch += 1
             
-        # 3. Global DDP Loss Aggregation across GPUs
         if is_distributed:
             loss_tensor = torch.tensor([local_epoch_loss, batch], device=device, dtype=torch.float64)
             dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
