@@ -157,8 +157,14 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                     )
                     diagnostics = {}
                 
+            # inside the batch loop, replace the backward/sync section with:
+            torch.cuda.synchronize()
+            t0 = time.time()
+
             scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
+
+            torch.cuda.synchronize()
+            t1 = time.time()
 
             if is_distributed:
                 grads = [p.grad for p in model.parameters() if p.grad is not None]
@@ -166,18 +172,22 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                     flat_grad = torch.cat([g.view(-1) for g in grads])
                     dist.all_reduce(flat_grad, op=dist.ReduceOp.SUM)
                     flat_grad.div_(world_size)
-                    
                     offset = 0
                     for g in grads:
                         numel = g.numel()
                         g.copy_(flat_grad[offset : offset + numel].view_as(g))
                         offset += numel
 
+            torch.cuda.synchronize()
+            t2 = time.time()
+
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             scaler.step(optimizer)
             scaler.update()
             
             if (batch + 1) % 100 == 0 and local_rank == 0:
+                print(f"backward: {(t1-t0)*1000:.1f}ms | sync: {(t2-t1)*1000:.1f}ms | sync fraction: {(t2-t1)/(t2-t0)*100:.1f}%")
                 if raw_velocity_mse is None:
                     print(f"Epoch {epoch+1}/{epochs} | Batch {batch+1} | Loss: {loss:.4f}")
                 else:

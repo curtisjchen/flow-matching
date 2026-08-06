@@ -1,5 +1,4 @@
 training:
-  # Transformer comparison run; use this only after the U-Net smoke run.
   epochs: 100
   loss_type: improved_mean_flow
   batch_size: 64
