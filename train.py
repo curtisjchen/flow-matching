@@ -221,12 +221,12 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
 
             with patch('torch.distributed.is_initialized', return_value=False):
                 generate(
-                    config_path=config_path, n_steps=n_steps, samples=len(gen_labels),
+                    config_path=config_path, n_steps=n_steps, samples=len(gen_labels), cfg_scale=1.0,
                     labels=gen_labels, model=eval_model, suffix=f"epoch_{epoch+1}"
                 )
                 
                 evaluate(
-                    config_path=config_path, step_counts=[n_steps], batchsize=256, 
+                    config_path=config_path, step_counts=[n_steps], batchsize=256,  
                     samples=8192, cfg_scale=1.0, model=eval_model, suffix=f"epoch_{epoch+1}"
                 )
             
