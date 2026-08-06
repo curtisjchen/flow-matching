@@ -21,7 +21,7 @@ torch.cuda.reset_peak_memory_stats(device)
 
 for step in range(10):
     x = torch.randn(512, 1, 28, 28, device=device)
-    labels = torch.randint(0, 10, (64,), device=device)
+    labels = torch.randint(0, 10, (512,), device=device)
 
     loss, raw_mse, diag = mean_flow_loss(model=model, x_1=x, labels=labels)  # note: model, the DDP-wrapped object
     loss.backward()
