@@ -211,7 +211,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         # Generate & Eval (Rank 0 Only)
         if (epoch + 1) % 10 == 0 and local_rank == 0:
             print(f"\n--- Running Generation & Eval for Epoch {epoch+1} ---")
-            n_steps = 32 if loss_type == "flow_matching" else 1
+            n_steps = 16 if loss_type == "flow_matching" else 1
             
             eval_model = model.module if hasattr(model, "module") else model
             eval_model = getattr(eval_model, "_orig_mod", eval_model)

@@ -25,8 +25,10 @@ def generate(config_path, n_steps, checkpoint_path=None, samples=16, labels=None
         model.load_state_dict(checkpoint['model_state_dict'])
     
     model.eval()
+    
+    print("Compiling model for inference...")
+    model = torch.compile(model, mode="reduce-overhead")
 
-    # 2. Setup Labels
     if labels is None:
         labels = torch.full((samples,), model.null_class_idx, dtype=torch.long, device=device)
     else:
