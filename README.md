@@ -61,14 +61,14 @@ torchrun --nproc_per_node=2 train.py --config_path configs/config_cifar10_uncond
 ## 📊 Experimental Results
 
 ### 1. MNIST 
-## Trained conditionally but evaluated unconditionally
+#### Trained conditionally but evaluated unconditionally
 > **Goal:** Validate 1-step sampling convergence and CFG-aware trajectory modeling on $28 \times 28$ class-conditioned digits.
 
-| Model | Loss Type | Sampling Steps (NFE) | CFG Scale ($w$) | FID ($\downarrow$) | Benchmark Notes |
-| :--- | :--- | :---: | :---: | :---: | :--- |
-| **Flow Matching** | Standard CFM | 50 (Euler) | 1.0 | *[Add FID]* | Multi-step baseline |
-| **Mean Flow** | Original MF | 1 | 1.0 | *[Add FID]* | 1-step generation |
-| **Improved Mean Flow** | iMF | 1 | 1.0 | *[Add FID]* | 1-step fast-forward |
+| Method | Model | Parameters | Epochs Trained | LR | Loss Type | Warmup Steps | Sampling Steps (NFE) | FID | 
+| :--- | :--- | :--- | :---: | :---: | :---: | :--- |
+| **Flow Matching** | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | Standard | 16 | 14.1 | 
+| **Mean Flow** | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | Standard | 1 | 59.2 |
+| **Improved Mean Flow** | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | Standard | 1 | 39.0 |
 
 #### Visual Samples
 *(Insert sample grids for 1-NFE vs 50-NFE here)*
@@ -76,7 +76,7 @@ torchrun --nproc_per_node=2 train.py --config_path configs/config_cifar10_uncond
 [ Placeholders for MNIST Generated Sample Grids ]
 ```
 
-## Classifier free guidance performance 
+#### Classifier free guidance performance 
 To evaluate each model's performance on generating conditioned samples, we can use a pretrained classifier that has high accuracy on MNIST, and pass our generated samples through that classifier. 
 
 ---
