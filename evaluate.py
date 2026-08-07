@@ -114,7 +114,6 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
         solver_fn = euler_solve if loss_type == "flow_matching" else mean_flow_multistep_sample
         
         for i in range(num_batches):
-            # CRITICAL: ALWAYS use the full batchsize to prevent torch.compile graph breaks
             if cfg_scale > 1.0:
                 gen_labels = torch.randint(0, num_classes, (batchsize,), device=device)
             else:
