@@ -65,10 +65,10 @@ torchrun --nproc_per_node=2 train.py --config_path configs/config_cifar10_uncond
 > **Goal:** Validate 1-step sampling convergence and CFG-aware trajectory modeling on $28 \times 28$ class-conditioned digits.
 
 | Method | Model | Parameters | Epochs Trained | LR | Loss Type | Warmup Steps | Sampling Steps (NFE) | FID | 
-| :--- | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Flow Matching** | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | Standard | 16 | 14.1 | 
-| **Mean Flow** | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | Standard | 1 | 59.2 |
-| **Improved Mean Flow** | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | Standard | 1 | 39.0 |
+| :--- | :--- | :--- | :---: | :---: | :---: | :--- | :--- | :--- |
+| **Flow Matching** | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | 16 | 14.1 | 
+| **Mean Flow** | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | 1 | 59.2 |
+| **Improved Mean Flow** | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | 1 | 39.0 |
 
 #### Visual Samples
 *(Insert sample grids for 1-NFE vs 50-NFE here)*
