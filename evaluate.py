@@ -15,12 +15,14 @@ from solver import euler_solve, mean_flow_multistep_sample
 from utils import build_model
 
 def denormalize(images, verbose=False):
+    """Reverts normalization from [-1, 1] (or standard normal) to [0, 1]."""
     raw = images * 0.3081 + 0.1307
     if verbose:
         print(f"pre-clamp range: [{raw.min():.3f}, {raw.max():.3f}]")
     return raw.clamp(0.0, 1.0)
 
 def _setup_fid_real_features(fid, dataloader, device, cache_path="fid_real_cache.pt"):
+    """Caches or loads the real dataset features for FID to avoid recomputing them."""
     t0 = time.time()
     if os.path.exists(cache_path):
         cache = torch.load(cache_path, map_location=device, weights_only=True)
@@ -32,7 +34,9 @@ def _setup_fid_real_features(fid, dataloader, device, cache_path="fid_real_cache
         for real_images, _ in dataloader:
             real_images = real_images.to(device)
             real_images = denormalize(real_images)
-            real_images = real_images.expand(-1, 3, -1, -1)
+            # Expand grayscale (1-channel) to RGB (3-channel) for InceptionV3
+            if real_images.shape[1] == 1:
+                real_images = real_images.expand(-1, 3, -1, -1)
             fid.update(real_images, real=True)
             
         torch.save({
@@ -67,6 +71,7 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
 
     if compile_model:
         print("Compiling model for inference...")
+        # reduce-overhead is optional, but often helps on modern GPUs
         model = torch.compile(model, mode="reduce-overhead")
 
     num_params = sum(p.numel() for p in model.parameters())
@@ -86,12 +91,26 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
     fid = fid.to(device)
     fid = _setup_fid_real_features(fid, dataloader, device)
 
-    # 3. Evaluation Loop
+    # 3. Warmup Compiled Model & CUDA Kernels (Prevents timing leaks on Step 1)
+    if compile_model:
+        print("Warming up compiled model graph and CUDA kernels...")
+        dummy_shape = (2, c, w, h)
+        dummy_labels = torch.zeros(2, dtype=torch.long, device=device)
+        solver_fn = euler_solve if loss_type == "flow_matching" else mean_flow_multistep_sample
+        _ = solver_fn(
+            model=model, N=1, shape=dummy_shape, labels=dummy_labels, 
+            w_val=1.0, null_class_idx=model.null_class_idx
+        )
+        torch.cuda.synchronize()
+        print("Warmup complete.")
+
+    # 4. Evaluation Loop
     res_map, gen_time_map, fid_time_map = {}, {}, {}
     num_batches = math.ceil(samples / batchsize)
 
     for steps in step_counts:
         gen_time, fid_eval_time = 0.0, 0.0
+        solver_fn = euler_solve if loss_type == "flow_matching" else mean_flow_multistep_sample
         
         for i in range(num_batches):
             current_batch = min(batchsize, samples - i * batchsize)
@@ -101,36 +120,46 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
             else:
                 gen_labels = torch.full((current_batch,), model.null_class_idx, dtype=torch.long, device=device)
 
-            t_gen = time.time()
             shape = (current_batch, c, w, h)
-            if loss_type == "flow_matching":
-                sample = euler_solve(
-                    model=model, N=steps, shape=shape, labels=gen_labels, 
-                    w_val=cfg_scale, null_class_idx=model.null_class_idx
-                )
-            else:
-                sample = mean_flow_multistep_sample(
-                    model=model, N=steps, shape=shape, labels=gen_labels, 
-                    w_val=cfg_scale, null_class_idx=model.null_class_idx
-                )
-            gen_time += time.time() - t_gen
             
-            t_fid = time.time()
-            sample = denormalize(sample).expand(-1, 3, -1, -1)
+            # --- Measure Generation Time ---
+            torch.cuda.synchronize()
+            t_gen = time.perf_counter()
+            
+            sample = solver_fn(
+                model=model, N=steps, shape=shape, labels=gen_labels, 
+                w_val=cfg_scale, null_class_idx=model.null_class_idx
+            )
+            
+            torch.cuda.synchronize()
+            gen_time += time.perf_counter() - t_gen
+            
+            # --- Measure FID Feature Extraction Time ---
+            torch.cuda.synchronize()
+            t_fid = time.perf_counter()
+            
+            sample = denormalize(sample)
+            if c == 1:
+                sample = sample.expand(-1, 3, -1, -1)
             fid.update(sample, real=False)
-            fid_eval_time += time.time() - t_fid
             
-        t_compute = time.time()
+            torch.cuda.synchronize()
+            fid_eval_time += time.perf_counter() - t_fid
+        
+        # --- Measure Final FID Matrix Computation Time ---
+        torch.cuda.synchronize()
+        t_compute = time.perf_counter()
         res_map[steps] = fid.compute().item()
-        fid_eval_time += time.time() - t_compute
+        torch.cuda.synchronize()
+        fid_eval_time += time.perf_counter() - t_compute
         
         gen_time_map[steps] = gen_time
         fid_time_map[steps] = fid_eval_time
         
-        print(f"Steps={steps} (CFG={cfg_scale}) | FID: {res_map[steps]:.3f} | Gen time: {gen_time:.1f}s | FID time: {fid_eval_time:.1f}s")
+        print(f"Steps={steps} (CFG={cfg_scale}) | FID: {res_map[steps]:.3f} | Gen time: {gen_time:.2f}s | FID time: {fid_eval_time:.2f}s")
         fid.reset()
  
-    # 4. Save Results
+    # 5. Save Results
     results = {
         "checkpoint_path": checkpoint_path or "passed_from_memory",
         "config": config,
@@ -138,6 +167,8 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
         "samples": samples,
         "cfg_scale": cfg_scale,
         "fid": {str(k): float(v) for k, v in res_map.items()},
+        "gen_time": {str(k): float(v) for k, v in gen_time_map.items()},
+        "fid_time": {str(k): float(v) for k, v in fid_time_map.items()},
         "timestamp": datetime.now().isoformat()
     }
 
