@@ -31,12 +31,12 @@ The goal of this project is to build, evaluate, and benchmark **fast-forward con
 * **Concept:** Shifts the modeling target from instantaneous velocity $v$ to average velocity $u(z_r, r, t)$ over arbitrary time windows $[r, t]$. Uses the Fundamental Theorem of Calculus to establish the **Mean Flow Identity**:
   $$u(z_r, r, t) = v(z_r, r) - (t - r) \frac{d}{dr} u(z_r, r, t)$$
   This differential relation enables training 1-step look-ahead trajectories directly from scratch.
-* **Sampling:** 1-NFE ($x_1 = x_0 + u(x_0, 0, 1)$).
+* **Sampling:** 1-NFE ( $x_1 = x_0 + u(x_0, 0, 1)$ ).
 
 ### 3. Improved Mean Flows (iMF)
 * **Paper:** [Improved Mean Flows: On the Challenges of Fastforward Generative Models](https://arxiv.org/abs/2512.02012) (Geng et al., 2025)
 * **Concept:** Resolves parameter-dependence issues in the original Mean Flow loss by recasting it into a well-posed regression problem. iMF extracts the boundary velocity $v = u_\theta(z_r, r, r)$ directly from the model, passes it as a spatial directional tangent into a Jacobian-Vector Product (JVP) via forward-mode AD (`torch.func.jvp`), and compares the resulting compound prediction $V_\theta$ against ground-truth velocity $(x_1 - x_0)$.
-* **Sampling:** Ultra-fast 1-NFE with flexible test-time Classifier-Free Guidance (CFG).
+* **Sampling:** 1-NFE ( $x_1 = x_0 + u(x_0, 0, 1)$ ).
 
 ---
 
