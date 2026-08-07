@@ -64,11 +64,11 @@ torchrun --nproc_per_node=2 train.py --config_path configs/config_cifar10_uncond
 #### Trained conditionally but evaluated unconditionally
 > **Goal:** Validate 1-step sampling convergence and CFG-aware trajectory modeling on $28 \times 28$ class-conditioned digits.
 
-| Method | Model | Parameters | Epochs Trained | LR | Warmup Steps | Sampling Steps (NFE) | FID | 
-| :--- | :--- | :--- | :---: | :---: | :---: | :--- | :--- |
-| **Flow Matching** | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | 16 | 14.1 | 
-| **Mean Flow** | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | 1 | 59.2 |
-| **Improved Mean Flow** | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | 1 | 39.0 |
+| Method | $p(r=t) | Model | Parameters | Epochs Trained | LR | Warmup Steps | Sampling Steps (NFE) | FID | 
+| :--- | :--- | :--- | :--- | :---: | :---: | :---: | :--- | :--- |
+| **Flow Matching** | N/A | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | 16 | 14.1 | 
+| **Mean Flow** | 0.5 | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | 1 | 59.2 |
+| **Improved Mean Flow** | 0.5 | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | 1 | 39.0 |
 
 #### Visual Samples
 *(Insert sample grids for 1-NFE vs 50-NFE here)*

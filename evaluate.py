@@ -71,7 +71,6 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
 
     if compile_model:
         print("Compiling model for inference...")
-        # reduce-overhead is optional, but often helps on modern GPUs
         model = torch.compile(model, mode="reduce-overhead")
 
     num_params = sum(p.numel() for p in model.parameters())
