@@ -78,13 +78,13 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
     print(f"Evaluating Model | Parameters: {num_params:,}")
 
     # 2. Setup FID & Dataset
-    temp_loader = get_dataloader(batch_size=batchsize, train=False)
+    temp_loader = get_dataloader(batch_size=batchsize, train=True)
     dataloader = DataLoader(
         temp_loader.dataset, 
         batch_size=batchsize, 
         shuffle=False, 
         num_workers=temp_loader.num_workers
-    )
+    )   
 
     c, w, h = dataloader.dataset[0][0].shape
     fid = FrechetInceptionDistance(feature=2048, normalize=True, input_img_size=(3, w, h), reset_real_features=False)
@@ -94,8 +94,8 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
     # 3. Warmup Compiled Model & CUDA Kernels (Prevents timing leaks on Step 1)
     if compile_model:
         print("Warming up compiled model graph and CUDA kernels...")
-        dummy_shape = (2, c, w, h)
-        dummy_labels = torch.zeros(2, dtype=torch.long, device=device)
+        dummy_shape = (batchsize, c, w, h)
+        dummy_labels = torch.zeros(batchsize, dtype=torch.long, device=device)
         solver_fn = euler_solve if loss_type == "flow_matching" else mean_flow_multistep_sample
         _ = solver_fn(
             model=model, N=1, shape=dummy_shape, labels=dummy_labels, 
@@ -110,17 +110,17 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
 
     for steps in step_counts:
         gen_time, fid_eval_time = 0.0, 0.0
+        samples_generated = 0
         solver_fn = euler_solve if loss_type == "flow_matching" else mean_flow_multistep_sample
         
         for i in range(num_batches):
-            current_batch = min(batchsize, samples - i * batchsize)
-            
+            # CRITICAL: ALWAYS use the full batchsize to prevent torch.compile graph breaks
             if cfg_scale > 1.0:
-                gen_labels = torch.randint(0, num_classes, (current_batch,), device=device)
+                gen_labels = torch.randint(0, num_classes, (batchsize,), device=device)
             else:
-                gen_labels = torch.full((current_batch,), model.null_class_idx, dtype=torch.long, device=device)
+                gen_labels = torch.full((batchsize,), model.null_class_idx, dtype=torch.long, device=device)
 
-            shape = (current_batch, c, w, h)
+            shape = (batchsize, c, w, h)
             
             # --- Measure Generation Time ---
             torch.cuda.synchronize()
@@ -134,6 +134,13 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
             torch.cuda.synchronize()
             gen_time += time.perf_counter() - t_gen
             
+            # --- Slice final batch to target sample size ---
+            samples_needed = samples - samples_generated
+            if samples_needed < batchsize:
+                sample = sample[:samples_needed]
+            
+            samples_generated += sample.shape[0]
+
             # --- Measure FID Feature Extraction Time ---
             torch.cuda.synchronize()
             t_fid = time.perf_counter()
