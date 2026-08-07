@@ -24,7 +24,7 @@ The goal of this project is to build, evaluate, and benchmark **fast-forward con
 ### 1. Flow Matching (FM)
 * **Paper:** [Flow Matching for Generative Modeling](https://arxiv.org/abs/2210.02747) (Lipman et al., ICLR 2023)
 * **Concept:** Regresses a neural network onto the vector field $v_t(x)$ of conditional probability paths. By pairing standard Gaussian noise $x_0$ with target data $x_1$ via linear optimal transport interpolation ($x_t = (1-t)x_0 + t x_1$), FM minimizes trajectory curvature.
-* **Sampling:** Multi-step (Euler / Midpoint / RK4 ODE solvers).
+* **Sampling:** Multi-step (Euler method). Solve the ODE using instantaneous velocity to approximate the curved vector field. Usually requires at least 16 steps for good results on MNIST from experiments.
 
 ### 2. Mean Flows (MF)
 * **Paper:** [Mean Flows for One-step Generative Modeling](https://arxiv.org/abs/2505.13447) (Gao et al., 2025)
