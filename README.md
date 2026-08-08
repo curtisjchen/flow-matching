@@ -88,11 +88,11 @@ Here are the parameters and hyperparameters used:
 
 ### 1. MNIST
 #### Trained conditionally but evaluated unconditionally
-| Method | $p(r=t)$ | Model | 1-NFE FID-50K | 32-NFE FID-50K | 
+| Method | $p(r=t)$ | Model | 1-NFE FID-50K | 8-NFE FID-50K | 32-NFE FID-50K | 
 | :--- | :---: | :---:| :---: | :---: | 
-| **Flow Matching** | 1.0 | DiT-Base | 361.2 | 10.2 | 
-| **Mean Flow** | 0.5 | DiT-Base | 59.2 | x |
-| **Improved Mean Flow** | 0.5 | DiT-Base | 39.0 | x |
+| **Flow Matching** | 1.0 | DiT-Base | 361.2 | x | 10.2 | 
+| **Mean Flow** | 0.5 | DiT-Base | 58.0 | x | x | 
+| **Improved Mean Flow** | 0.5 | DiT-Base | x | x | x | 
 
 #### Visual Samples
 *(Insert sample grids for 1-NFE vs 50-NFE here)*
