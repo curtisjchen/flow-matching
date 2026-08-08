@@ -119,12 +119,6 @@ To evaluate each model's performance on generating conditioned samples, we can u
 
 ---
 
-## 🎥 Additional Resources
-
-* **Paper Walkthrough Video:** [Improved Mean Flows Paper Overview Video](https://www.youtube.com/watch?v=h79lanvf6tk) — A detailed breakdown of fast-forward generative trajectories and stabilizing training objectives.
-
----
-
 ## 📝 References
 
 ```bibtex
