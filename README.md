@@ -119,7 +119,7 @@ To evaluate each model's performance on generating conditioned samples, we can u
 
 ---
 
-## 📝 References
+## References
 
 ```bibtex
 @inproceedings{lipman2023flow,
