@@ -40,7 +40,7 @@ The goal of this project is to build, evaluate, and benchmark **fast-forward con
 
 ### Notes
 
-Flow matching can be seen as a special case of Mean Flows where $p(r=t) = 1$. When $r = t$ we are predicting the instantaneous velocity at time $t$. This way we can train a model that takes in parameters (z, r, t) for all 3 loss functions.
+Flow matching can be seen as a special case of Mean Flows where $p(r=t) = 1$. When $r = t$ we are predicting the instantaneous velocity at time $t$. This way we can train a model that takes in parameters (z, r, t) for all 3 loss functions without altering the architecture.
 
 ---
 
@@ -105,7 +105,9 @@ To evaluate each model's performance on generating conditioned samples, we can u
 
 ---
 
-### 2. CIFAR-10 (Unconditional Baseline)
+### 2. CIFAR-10
+
+> Compared unconditional generation of images because CFG training took too long for Mean Flows and Improved Mean Flows
 
 | Method | $p(r=t)$ | Model | 1-NFE FID-50K | 32-NFE FID-50K | 
 | :--- | :---: | :---:| :---: | :---: | 
