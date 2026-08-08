@@ -89,8 +89,8 @@ Here are the parameters and hyperparameters used:
 | Method | $p(r=t)$ | Model | 1-NFE FID-50K | 32-NFE FID-50K | 
 | :--- | :---: | :---:| :---: | :---: | 
 | **Flow Matching** | 1.0 | DiT-Base | 361.2 | 10.2 | 
-| **Mean Flow** | 0.5 | DiT-Base | 59.2 |
-| **Improved Mean Flow** | 0.5 | DiT-Base | 39.0 |
+| **Mean Flow** | 0.5 | DiT-Base | 59.2 | x |
+| **Improved Mean Flow** | 0.5 | DiT-Base | 39.0 | x |
 
 #### Visual Samples
 *(Insert sample grids for 1-NFE vs 50-NFE here)*
