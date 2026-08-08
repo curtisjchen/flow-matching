@@ -99,18 +99,17 @@ Here are the parameters and hyperparameters used:
 ```
 
 #### Classifier free guidance performance 
-To evaluate each model's performance on generating conditioned samples, we can use a pretrained classifier that has high accuracy on MNIST, and pass our generated samples through that classifier. 
+To evaluate each model's performance on generating conditioned samples, we can use a pretrained classifier that has high accuracy on MNIST, and pass our generated samples through that classifier. We use the classifier as an oracle.
 
 ---
 
 ### 2. CIFAR-10 (Unconditional Baseline)
-> **Goal:** Benchmark single-pass 1-NFE generation against standard multi-step continuous flow baselines on $32 \times 32 \times 3$ RGB images ($p_{\text{uncond}} = 1.0$).
 
-| Model | Loss Type | Sampling Steps (NFE) | FID ($\downarrow$) | Epochs Trained | Training Time |
-| :--- | :--- | :---: | :---: | :---: | :--- |
-| **Flow Matching** | CFM (OT-Path) | 50 | *[Pending]* | 300 | *[Hours]* |
-| **Flow Matching** | CFM (OT-Path) | 1 | *[Pending]* | 300 | *[Hours]* |
-| **Improved Mean Flow** | iMF | 1 | *[Pending]* | 300 | *[Hours]* |
+| Method | $p(r=t)$ | Model | 1-NFE FID-50K | 32-NFE FID-50K | 
+| :--- | :---: | :---:| :---: | :---: | 
+| **Flow Matching** | 1.0 | DiT-Base | x | x | 
+| **Mean Flow** | 0.5 | DiT-Base | x | x |
+| **Improved Mean Flow** | 0.5 | DiT-Base | x | x | 
 
 #### Visual Samples
 *(Insert CIFAR-10 unconditional sample grids here)*
