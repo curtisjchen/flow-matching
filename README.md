@@ -41,7 +41,8 @@ The goal of this project is to build, evaluate, and benchmark **fast-forward con
 ### Notes
 
 Flow matching can be seen as a special case of Mean Flows where $p(r=t) = 1$. When $r = t$ we are predicting the instantaneous velocity at time $t$. This way we can train a model that takes in parameters (z, r, t) for all 3 loss functions.
----
+
+q---
 
 ## 🚀 Quickstart
 
