@@ -90,7 +90,7 @@ Here are the parameters and hyperparameters used:
 #### Trained conditionally but evaluated unconditionally
 | Method | $p(r=t)$ | Model | 1-NFE FID-50K | 8-NFE FID-50K | 32-NFE FID-50K | 
 | :--- | :---: | :---:| :---: | :---: | :---: | 
-| **Flow Matching** | 1.0 | DiT-Base | 361.2 | x | 10.2 | 
+| **Flow Matching** | 1.0 | DiT-Base | 361.2 | 20.4 | 10.2 | 
 | **Mean Flow** | 0.5 | DiT-Base | 58.0 | x | x | 
 | **Improved Mean Flow** | 0.5 | DiT-Base | x | x | x | 
 
