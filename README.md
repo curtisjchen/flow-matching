@@ -38,6 +38,8 @@ The goal of this project is to build, evaluate, and benchmark **fast-forward con
 * **Concept:** Resolves parameter-dependence issues in the original Mean Flow loss by recasting it into a well-posed regression problem. iMF extracts the boundary velocity $v = u_\theta(z_r, r, r)$ directly from the model, passes it as a spatial directional tangent into a Jacobian-Vector Product (JVP) via forward-mode AD (`torch.func.jvp`), and compares the resulting compound prediction $V_\theta$ against ground-truth velocity $(x_1 - x_0)$.
 * **Sampling:** 1-NFE ( $x_1 = x_0 + u(x_0, 0, 1)$ ).
 
+### Notes
+Flow matching can be seen as a special case of Mean Flows where $p(r=t) = 1$. When $r = t$ we are predicting the instantaneous velocity at time $t$. This way we can train a model that takes in parameters (z, r, t) for all 3 loss functions.
 ---
 
 ## 🚀 Quickstart
@@ -53,22 +55,42 @@ uv sync
 To launch distributed training across 2 GPUs (e.g., dual NVIDIA T4s on Kaggle):
 
 ```bash
-torchrun --nproc_per_node=2 train.py --config_path configs/config_cifar10_uncond.yaml
+torchrun --nproc_per_node=2 train.py --config_path configs/dit_mnist_fm_xl_compile.yaml
 ```
+
+## Models Used
+### 1. UNet
+A UNet was used as the baseline for the project. I didn't save the results so unfortunately I can't put it here, but a UNet is basically a neural network architecture than uses residual connections and downsampling and upsampling blocks in order to generate an image. The model takes in random Gaussian noise in the shape (batch_size, 1, 28, 28). time and cfg-weight are injected into the model using a sinusoidal time and weight embedding and then adding it to the latent vector at each step of the network.
+
+### 2. Diffusion Transformer (DiT)
+Diffusion transformers replaced UNets for diffusion tasks. They are similar in that they take in random noise and output an image where the input and output are of the same shape. All 3 types of loss can use the same architecture, which no change in parameter size, so it is convenient to perform ablations. 
+
+Here are the parameters and hyperparameters used:
+
+| Model | DiT-Base | 
+| :---: | :---: |
+| Parameters | 4.2M |
+| Hidden Size | 196 |
+| Num Heads | 4 |
+| Num Layers | 6 |
+| Patch Size | 2 |
+| Epochs Trained | 300 |
+| LR | 3e-4 |
+| Min LR | 1e-4 |
+| LR Scheduler | Cosine Annealing |
+| Warmup Steps | 5 |
 
 ---
 
 ## 📊 Experimental Results
 
-### 1. MNIST 
+### 1. MNIST
 #### Trained conditionally but evaluated unconditionally
-> **Goal:** Validate 1-step sampling convergence and CFG-aware trajectory modeling on $28 \times 28$ class-conditioned digits.
-
-| Method | <nobr>$p(r=t)$</nobr> | Model | Parameters | Epochs Trained | LR | Warmup Steps | Sampling Steps (NFE) | 1-NFE FID-50K |  
-| :--- | :---: | :---:| :---: | :---: | :---: | :---: | :---: | :---: |
-| **Flow Matching** | N/A | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | 16 | 14.1 | 
-| **Mean Flow** | 0.5 | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | 1 | 59.2 |
-| **Improved Mean Flow** | 0.5 | DiT | 4.2M | 300 | 3e-4 -> 1e-4 (Cosine Annealing) | 5 | 1 | 39.0 |
+| Method | $p(r=t)$ | Model | 1-NFE FID-50K | 32-NFE FID-50K | 
+| :--- | :---: | :---:| :---: | :---: | 
+| **Flow Matching** | 1.0 | DiT-Base | 361.2 | 10.2 | 
+| **Mean Flow** | 0.5 | DiT-Base | 59.2 |
+| **Improved Mean Flow** | 0.5 | DiT-Base | 39.0 |
 
 #### Visual Samples
 *(Insert sample grids for 1-NFE vs 50-NFE here)*
