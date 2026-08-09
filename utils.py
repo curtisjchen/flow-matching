@@ -23,7 +23,7 @@ def build_model(config):
         return UNet(
             w_min=model_config.get("w_min", 1.0),
             w_max=model_config.get("w_max", 5.0),
-            in_channels=model_config.get("c", 1),        # Map config 'c' to 'in_channels'
+            in_channels=model_config.get("in_channels", 1), 
             channels=model_config.get("channels", [64, 256]),
             prefinal=model_config.get("prefinal", 32),
             time_in=model_config.get("time_in", 128),
