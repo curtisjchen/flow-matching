@@ -1,5 +1,6 @@
 from models.unet import UNet
 from models.dit import DiT
+import copy
 
 def build_model(config):
     """Instantiates the model based on the configuration dictionary."""
