@@ -1,0 +1,75 @@
+{
+  "checkpoint_path": "/kaggle/input/models/cc5151515151/flow-matching-models/pytorch/default/1/dit_mnist_fm_xl_compile_epoch_300.pt",
+  "config": {
+    "training": {
+      "epochs": 300,
+      "loss_type": "flow_matching",
+      "batch_size": 512,
+      "learning_rate": 0.0003,
+      "min_lr": 0.0001,
+      "warmup_epochs": 5,
+      "p_rt": 0.5,
+      "adaptive_loss_power": 1.0,
+      "adaptive_loss_eps": 0.01,
+      "time_sampler": "logit_normal",
+      "logit_normal_mean": -0.4,
+      "logit_normal_std": 1.0,
+      "cfg_aware_loss": true
+    },
+    "model": {
+      "type": "dit",
+      "hidden_dim": 192,
+      "num_heads": 4,
+      "num_layers": 6,
+      "patch_size": 2,
+      "in_channels": 1,
+      "c": 1,
+      "w": 28,
+      "h": 28,
+      "image_size": 28,
+      "w_min": 1.0,
+      "w_max": 3.0,
+      "p_uncond": 0.1,
+      "num_classes": 10
+    }
+  },
+  "step_counts": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64
+  ],
+  "samples": 50000,
+  "cfg_scale": 1.0,
+  "fid": {
+    "1": 361.1993103027344,
+    "2": 136.7358856201172,
+    "4": 48.411434173583984,
+    "8": 20.442127227783203,
+    "16": 12.79117202758789,
+    "32": 10.283185958862305,
+    "64": 9.416516304016113
+  },
+  "gen_time": {
+    "1": 56.36182747499947,
+    "2": 114.75603176299887,
+    "4": 231.01711893499714,
+    "8": 462.65473217399904,
+    "16": 926.2415831110029,
+    "32": 1852.3750631340013,
+    "64": 3711.8424566369986
+  },
+  "fid_time": {
+    "1": 211.4259468509996,
+    "2": 209.80646310999884,
+    "4": 208.73338503500077,
+    "8": 206.47709289100112,
+    "16": 206.3542944839969,
+    "32": 206.22813543100347,
+    "64": 206.45722472600846
+  },
+  "timestamp": "2026-08-08T00:24:08.445777"
+}

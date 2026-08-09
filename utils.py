@@ -32,3 +32,25 @@ def build_model(config):
         )
     else:
         raise ValueError(f"Unknown model type: {model_config['type']}")
+    
+    
+class EMA:
+    def __init__(self, model, decay=0.9999):
+        self.decay = decay
+        # Create a deep copy for the shadow weights
+        self.ema_model = copy.deepcopy(model)
+        self.ema_model.eval() # EMA model always stays in eval mode
+        
+        # Turn off gradients for the shadow model to save memory
+        for param in self.ema_model.parameters():
+            param.requires_grad = False
+
+    def step(self, active_model):
+        """Call this right after optimizer.step()"""
+        with torch.no_grad():
+            # If using DDP, we need to access the underlying model weights using .module
+            active_params = active_model.module.parameters() if hasattr(active_model, 'module') else active_model.parameters()
+            
+            for ema_param, active_param in zip(self.ema_model.parameters(), active_params):
+                # EMA update formula
+                ema_param.data.mul_(self.decay).add_(active_param.data, alpha=1.0 - self.decay)

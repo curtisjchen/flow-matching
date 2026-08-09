@@ -1,7 +1,7 @@
 from data import get_dataloader
 from flow import flow_matching_loss
 from mean_flow import mean_flow_loss, improved_mean_flow_loss
-from utils import build_model
+from utils import EMA, build_model
 from count_params import count_params
 import torch
 import os
@@ -75,6 +75,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
     cfg_aware_loss = config["model"].get("cfg_aware_loss", True)
     
     model = build_model(config).to(device)
+    ema = EMA(model, decay=0.9999) # 0.9999 is standard for generative models
     if local_rank == 0:
         print(count_params(config_path=config_path))
     
@@ -106,6 +107,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             if local_rank == 0: print("Scheduler reset!")
             
         model.load_state_dict(checkpoint['model_state_dict'])
+        ema.ema_model.load_state_dict(checkpoint.get('ema_state_dict', checkpoint['model_state_dict']))
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         epoch_loss_list = checkpoint.get('epoch_loss_list', [])
         start_epoch = checkpoint['epoch'] + 1
@@ -181,6 +183,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             scaler.step(optimizer)
             scaler.update()
+            ema.step(model)
 
             if (batch + 1) % 50 == 0 and local_rank == 0:
                 if raw_velocity_mse is None:
@@ -213,7 +216,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         torch.cuda.reset_peak_memory_stats(device)
 
         if (epoch + 1) % 5 == 0 and save_all and local_rank == 0:
-            save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler)
+            save_checkpoint(epoch, model, ema, optimizer, epoch_loss_list, config_stem, scheduler)
             print(f"Epoch {epoch+1} Checkpoint Saved!")
 
         scheduler.step() 
@@ -225,8 +228,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             print(f"\n--- Running Generation & Eval for Epoch {epoch+1} ---")
             n_steps = 16 if loss_type == "flow_matching" else 1
             
-            eval_model = model.module if hasattr(model, "module") else model
-            eval_model = getattr(eval_model, "_orig_mod", eval_model)
+            eval_model = ema.ema_model
             eval_model.eval()
             
             gen_labels = (torch.arange(10 * num_classes) % num_classes).to(device)
@@ -255,20 +257,21 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             dist.barrier(device_ids=[local_rank])
 
     if not save_all and local_rank == 0:
-        save_checkpoint(epochs - 1, model, optimizer, epoch_loss_list, config_stem, scheduler)
+        save_checkpoint(epochs - 1, model, ema, optimizer, epoch_loss_list, config_stem, scheduler)
 
     if is_distributed:
         dist.destroy_process_group()
 
     return epoch_loss_list
 
-def save_checkpoint(epoch, model, optimizer, epoch_loss_list, config_stem, scheduler):
+def save_checkpoint(epoch, model, ema, optimizer, epoch_loss_list, config_stem, scheduler):
     raw_model = model.module if hasattr(model, "module") else model
     raw_model = getattr(raw_model, "_orig_mod", raw_model)
 
     checkpoint = {
         'epoch': epoch, 
         'model_state_dict': raw_model.state_dict(),
+        'ema_state_dict': ema.ema_model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'epoch_loss_list': epoch_loss_list, 
         'scheduler_state_dict': scheduler.state_dict()
