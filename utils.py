@@ -4,8 +4,9 @@ from models.dit import DiT
 def build_model(config):
     """Instantiates the model based on the configuration dictionary."""
     model_config = config["model"]
-    
-    if model_config["type"] == "dit":
+    model_type = model_config["type"]
+
+    if model_type == "dit":
         return DiT(
             hidden_dim=model_config["hidden_dim"],
             num_heads=model_config["num_heads"],
@@ -17,18 +18,17 @@ def build_model(config):
             w_min=model_config.get("w_min", 1.0),
             w_max=model_config.get("w_max", 5.0)
         )
-    elif model_config["type"] == "unet":
+    if model_type == "unet":
+        # Explicitly map the config keys to the new UNet signature
         return UNet(
-            time_in=model_config["time_in"],
-            time_out=model_config["time_out"],
-            down_in_1=model_config["down_in_1"],
-            down_in_2=model_config["down_in_2"],
-            down_out_1=model_config["down_out_1"],
-            down_out_2=model_config["down_out_2"],
-            prefinal=model_config["prefinal"],
-            num_classes=model_config["num_classes"],
             w_min=model_config.get("w_min", 1.0),
-            w_max=model_config.get("w_max", 5.0)
+            w_max=model_config.get("w_max", 5.0),
+            in_channels=model_config.get("c", 1),        # Map config 'c' to 'in_channels'
+            channels=model_config.get("channels", [64, 256]),
+            prefinal=model_config.get("prefinal", 32),
+            time_in=model_config.get("time_in", 128),
+            time_out=model_config.get("time_out", 256),
+            num_classes=model_config.get("num_classes", 10)
         )
     else:
         raise ValueError(f"Unknown model type: {model_config['type']}")

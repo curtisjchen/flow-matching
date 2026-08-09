@@ -1,9 +1,8 @@
-from typing import Any
-
-import torch.nn as nn
 import torch
+import torch.nn as nn
 from modules import TimeEmbedding, ClassEmbedding, WEmbedding
 
+# [ConvBlock and UpBlock remain exactly the same as your code]
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, time_emb_dim):
         super().__init__()
@@ -37,78 +36,75 @@ class UpBlock(nn.Module):
         image = self.convblock(image, time)
         return image
 
-
+# [Refactored Dynamic UNet]
 class UNet(nn.Module):
     def __init__(self,
                  w_min=1.0,
                  w_max=5.0,
-                 down_in_1=1, 
-                 down_out_1=32, 
-                 down_in_2=32, 
-                 down_out_2=64,
-                 prefinal=16,
+                 in_channels=1,
+                 channels=(64, 256),  # Replaces down_in/down_out. Pass (64, 128, 256) for 3-layers!
+                 prefinal=32,
                  time_in=128,
                  time_out=256,
                  num_classes=0
                  ):
         super().__init__()
-        self.down1 = ConvBlock(in_channels=down_in_1, 
-                               out_channels=down_out_1, 
-                               time_emb_dim=time_out
-                               )
-        self.down2 = ConvBlock(in_channels=down_in_2, 
-                               out_channels=down_out_2,
-                               time_emb_dim=time_out
-                               )
-        self.bottleneck = ConvBlock(in_channels=down_out_2, 
-                                    out_channels=down_out_2,
-                                    time_emb_dim=time_out)
-        self.up1 = UpBlock(in_channels=down_out_2, 
-                           out_channels=down_in_2,
-                           time_emb_dim=time_out
-                           )
-        self.up2 = UpBlock(in_channels=down_in_2, 
-                           out_channels=prefinal,
-                           time_emb_dim=time_out)
-        self.final = nn.Conv2d(in_channels=prefinal, 
-                               out_channels=down_in_1, 
-                               kernel_size=1, 
-                               stride=1, 
-                               padding=0)
-        self.time_emb = TimeEmbedding(time_in, time_out)
-        self.downsample1 = nn.Conv2d(in_channels=down_out_1, out_channels=down_out_1, kernel_size=3, padding=1, stride=2)
-        self.downsample2 = nn.Conv2d(in_channels=down_out_2, out_channels=down_out_2, kernel_size=3, padding=1, stride=2)
         self.null_class_idx = num_classes
+        
+        # Embeddings
+        self.time_emb = TimeEmbedding(time_in, time_out)
         self.class_emb = ClassEmbedding(num_classes=num_classes, embedding_dim=time_out)
         self.w_emb = WEmbedding(d_in=time_in, d_out=time_out, w_min=w_min, w_max=w_max)
+
+        # Dynamic Downsampling Layers
+        self.downs = nn.ModuleList()
+        self.downsamples = nn.ModuleList()
+        
+        curr_channels = in_channels
+        for out_channels in channels:
+            self.downs.append(ConvBlock(in_channels=curr_channels, out_channels=out_channels, time_emb_dim=time_out))
+            self.downsamples.append(nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1, stride=2))
+            curr_channels = out_channels
+            
+        # Bottleneck
+        self.bottleneck = ConvBlock(in_channels=curr_channels, out_channels=curr_channels, time_emb_dim=time_out)
+        
+        # Dynamic Upsampling Layers
+        self.ups = nn.ModuleList()
+        reversed_channels = list(reversed(channels))
+        
+        for i in range(len(reversed_channels)):
+            up_in = reversed_channels[i]
+            # The last upblock connects to the prefinal layer instead of another up_out
+            up_out = reversed_channels[i+1] if i + 1 < len(reversed_channels) else prefinal
+            self.ups.append(UpBlock(in_channels=up_in, out_channels=up_out, time_emb_dim=time_out))
+            
+        self.final = nn.Conv2d(in_channels=prefinal, out_channels=in_channels, kernel_size=1, stride=1, padding=0)
     
     def forward(self, image, r: torch.Tensor, t: torch.Tensor, w=None, class_labels=None):
-        stack = []
         cond = self.time_emb(r, t) + self.w_emb(w) + self.class_emb(class_labels)
-        image = self.down1(image, cond)
-        stack.append(image)
-        image = self.downsample1(image)
-        image = self.down2(image, cond)
-        stack.append(image)
-        image = self.downsample2(image)
+        stack = []
+        
+        # Down pass
+        for down, downsample in zip(self.downs, self.downsamples):
+            image = down(image, cond)
+            stack.append(image)
+            image = downsample(image)
+            
+        # Bottleneck
         image = self.bottleneck(image, cond)
-        image = self.up1(image, stack.pop(), cond)
-        image = self.up2(image, stack.pop(), cond)
+        
+        # Up pass
+        for up in self.ups:
+            skip = stack.pop()
+            image = up(image, skip, cond)
+            
         image = self.final(image)
         return image
+    
 
 if __name__ == "__main__":
-    model = UNet(num_classes=10)
-    x = torch.randn(4, 1, 28, 28)
-    r = torch.zeros(4)
-    t = torch.rand(4)
-    w = torch.tensor([1.0, 2.0, 3.0, 4.0])
-    labels = torch.tensor([0, 1, 2, model.null_class_idx])
-    
-    out = model(x, r, t, w, labels)
-    print(out.shape)
-
-
-
-
-
+    # Option A
+    model = UNet(channels=(64, 296), prefinal=32, time_in=128, time_out=256, num_classes=10)
+    num_params = sum(p.numel() for p in model.parameters())
+    print(f"Model Parameters: {num_params:,}")
