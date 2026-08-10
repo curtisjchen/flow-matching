@@ -62,7 +62,19 @@ torchrun --nproc_per_node=2 train.py --config_path configs/dit_mnist_fm_xl_compi
 
 ## Models Used
 ### 1. UNet
-A UNet was used as the baseline for the project. I didn't save the results so unfortunately I can't put it here, but a UNet is basically a neural network architecture than uses residual connections and downsampling and upsampling blocks in order to generate an image. The model takes in random Gaussian noise in the shape (batch_size, 1, 28, 28). time and cfg-weight are injected into the model using a sinusoidal time and weight embedding and then adding it to the latent vector at each step of the network.
+A UNet was used as the baseline for the project. A UNet is basically a neural network architecture than uses residual connections and downsampling and upsampling blocks in order to generate an image. The model takes in random Gaussian noise in the shape (batch_size, 1, 28, 28). time and cfg-weight are injected into the model using a sinusoidal time and weight embedding and then adding it to the latent vector at each step of the network.
+
+| Model | UNet-Base | 
+| :---: | :---: |
+| Parameters | 4.2M |
+| Channels | 64, 296 |
+| Downblocks | 2 |
+| Upblocks | 2 |
+| Epochs Trained | 300 |
+| LR | 3e-4 |
+| Min LR | 1e-5 |
+| LR Scheduler | Cosine Annealing |
+| Warmup Steps | 5 |
 
 ### 2. Diffusion Transformer (DiT)
 Diffusion transformers replaced UNets for diffusion tasks. They are similar in that they take in random noise and output an image where the input and output are of the same shape. All 3 types of loss can use the same architecture, which no change in parameter size, so it is convenient to perform ablations. 
@@ -90,8 +102,11 @@ Here are the parameters and hyperparameters used:
 #### Trained conditionally but evaluated unconditionally
 | Method | $p(r=t)$ | Model | Training Time per Epoch (2x Tesla T4) | 1-NFE FID-50K | 8-NFE FID-50K | 32-NFE FID-50K | 64-NFE FID-50K | 
 | :--- | :---: | :---:| :---: | :---: | :---: | :---: | :---: | 
+| **Flow Matching** | 1.0 | UNet-Base | ~10s | x | x | x | x | 
 | **Flow Matching** | 1.0 | DiT-Base | ~22s | 361.2 | 20.44 | 10.28 | 9.42 | 
-| **Mean Flow** | 0.5 | DiT-Base | 58.0 | ~44s | 8.31 | 7.32 | 9.17 | 
+| **Mean Flow** | 0.5 | UNet-Base  | ~1m2s | x | x | x | x | 
+| **Mean Flow** | 0.5 | DiT-Base | ~44s | 58.0 | 8.31 | 7.32 | 9.17 | 
+| **Improved Mean Flow** | 0.5 | UNet-Base | ~1m12s | x | x | x | x | 
 | **Improved Mean Flow** | 0.5 | DiT-Base | ~50s | 37.73 | 9.26 | 8.17 | 9.72 | 
 
 #### Visual Samples
