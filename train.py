@@ -116,8 +116,14 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             for _ in range(start_epoch):
                 scheduler.step()
 
-    compiled_mean_flow = torch.compile(mean_flow_loss)
-    compiled_improved_mean_flow = torch.compile(improved_mean_flow_loss)
+    if config['model'].get('type', 'unet') == "dit":
+        compiled_mean_flow = torch.compile(mean_flow_loss)
+        compiled_improved_mean_flow = torch.compile(improved_mean_flow_loss)
+    else:
+        compiled_mean_flow = mean_flow_loss
+        compiled_improved_mean_flow = improved_mean_flow_loss
+        
+    # Flow matching doesn't use JVP, so it compiles perfectly for both!
     compiled_flow_matching = torch.compile(flow_matching_loss)
 
     if is_distributed:
