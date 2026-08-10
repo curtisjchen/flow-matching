@@ -75,15 +75,13 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
     cfg_aware_loss = config["model"].get("cfg_aware_loss", True)
     
     model = build_model(config).to(device)
-    ema = EMA(model, decay=0.9999) # 0.9999 is standard for generative models
+    ema = EMA(model, decay=0.999)
     if local_rank == 0:
         print(count_params(config_path=config_path))
     
-    # 2. Automatically scale LR for effective batch size across multiple GPUs
     base_lr = config["training"]["learning_rate"]
     optimizer = torch.optim.AdamW(model.parameters(), lr=base_lr)
     
-    # T4 GPU: Retaining standard float16 GradScaler
     scaler = torch.amp.GradScaler('cuda', enabled=device.type == 'cuda')
     
     epoch_loss_list = []

@@ -37,7 +37,7 @@ def build_model(config):
     
     
 class EMA:
-    def __init__(self, model, decay=0.9999):
+    def __init__(self, model, decay=0.999):
         self.decay = decay
         # Create a deep copy for the shadow weights
         self.ema_model = copy.deepcopy(model)
