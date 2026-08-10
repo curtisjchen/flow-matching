@@ -3,7 +3,7 @@ training:
   loss_type: improved_mean_flow
   batch_size: 512
   learning_rate: 3.0e-4
-  min_lr: 1.0e-4
+  min_lr: 1.0e-5
   warmup_epochs: 5
   p_rt: 0.5
   adaptive_loss_power: 1.0
