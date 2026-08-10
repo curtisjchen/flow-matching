@@ -75,7 +75,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
     cfg_aware_loss = config["model"].get("cfg_aware_loss", True)
     
     model = build_model(config).to(device)
-    ema = EMA(model, decay=0.999)
+    ema = EMA(model, decay=0.99)
     if local_rank == 0:
         print(count_params(config_path=config_path))
     
