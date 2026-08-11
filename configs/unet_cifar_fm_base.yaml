@@ -2,8 +2,8 @@ training:
   epochs: 300
   loss_type: flow_matching
   batch_size: 512
-  learning_rate: 3.0e-4
-  min_lr: 1.0e-5
+  learning_rate: 1.0e-4
+  min_lr: 1.0e-4
   warmup_epochs: 5
   p_rt: 1.0
   adaptive_loss_power: 1.0
@@ -20,10 +20,6 @@ model:
   prefinal: 32
   time_in: 128
   time_out: 256
-  in_channels: 1
-  w: 28
-  h: 28
-  image_size: 28
   w_min: 1.0
   w_max: 3.0
   p_uncond: 0.1

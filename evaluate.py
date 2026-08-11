@@ -15,8 +15,9 @@ from solver import euler_solve, mean_flow_multistep_sample
 from utils import build_model
 
 def denormalize(images, verbose=False):
-    """Reverts normalization from [-1, 1] (or standard normal) to [0, 1]."""
-    raw = images * 0.3081 + 0.1307
+    """Reverts normalization from [-1, 1] to [0, 1]."""
+    # FIX 1: Use 0.5 mean/std to match your data.py transforms
+    raw = images * 0.5 + 0.5
     if verbose:
         print(f"pre-clamp range: [{raw.min():.3f}, {raw.max():.3f}]")
     return raw.clamp(0.0, 1.0)
@@ -34,7 +35,6 @@ def _setup_fid_real_features(fid, dataloader, device, cache_path="fid_real_cache
         for real_images, _ in dataloader:
             real_images = real_images.to(device)
             real_images = denormalize(real_images)
-            # Expand grayscale (1-channel) to RGB (3-channel) for InceptionV3
             if real_images.shape[1] == 1:
                 real_images = real_images.expand(-1, 3, -1, -1)
             fid.update(real_images, real=True)
@@ -51,20 +51,27 @@ def _setup_fid_real_features(fid, dataloader, device, cache_path="fid_real_cache
 
 @torch.inference_mode()
 def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samples=1000, cfg_scale=1.0, model=None, suffix="", compile_model=True):
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
+    # Only load YAML if we don't have a checkpoint (e.g., if passing a live model from train.py)
+    if config_path:
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+            config_stem = Path(config_path).stem
+    else:
+        config = None
+        config_stem = Path(checkpoint_path).stem if checkpoint_path else "live_model"
         
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    num_classes = config["model"]["num_classes"]
-    loss_type = config["training"].get("loss_type", "flow_matching")
-    config_stem = Path(config_path).stem
 
     # 1. Load Model
     if model is None:
         if checkpoint_path is None:
             raise ValueError("Must provide either a 'model' or a 'checkpoint_path'")
-        model = build_model(config).to(device)
+        
         checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
+        # FIX 2: Overwrite YAML config with the time-capsule config from the checkpoint!
+        config = checkpoint["config"] 
+        
+        model = build_model(config).to(device)
         model.load_state_dict(checkpoint["model_state_dict"])
     
     model.eval()
@@ -76,8 +83,13 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
     num_params = sum(p.numel() for p in model.parameters())
     print(f"Evaluating Model | Parameters: {num_params:,}")
 
+    num_classes = config["model"]["num_classes"]
+    loss_type = config["training"].get("loss_type", "flow_matching")
+    dataset_name = config["model"].get("dataset", "mnist")
+
     # 2. Setup FID & Dataset
-    temp_loader = get_dataloader(batch_size=batchsize, train=True)
+    # FIX 3: Pass dataset_name so we don't accidentally load MNIST for a CIFAR-10 model
+    temp_loader = get_dataloader(dataset_name=dataset_name, batch_size=batchsize, train=True)
     dataloader = DataLoader(
         temp_loader.dataset, 
         batch_size=batchsize, 
@@ -85,15 +97,20 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
         num_workers=temp_loader.num_workers
     )   
 
-    c, w, h = dataloader.dataset[0][0].shape
-    fid = FrechetInceptionDistance(feature=2048, normalize=True, input_img_size=(3, w, h), reset_real_features=False)
+    # FIX 4: Correct PyTorch shape unpacking (C, H, W)
+    c, h, w = dataloader.dataset[0][0].shape
+    
+    # Cache path specific to the dataset so MNIST and CIFAR caches don't overwrite each other
+    cache_path = f"fid_real_cache_{dataset_name}.pt"
+    
+    fid = FrechetInceptionDistance(feature=2048, normalize=True, input_img_size=(3, h, w), reset_real_features=False)
     fid = fid.to(device)
-    fid = _setup_fid_real_features(fid, dataloader, device)
+    fid = _setup_fid_real_features(fid, dataloader, device, cache_path=cache_path)
 
     # 3. Warmup Compiled Model & CUDA Kernels (Prevents timing leaks on Step 1)
     if compile_model:
         print("Warming up compiled model graph and CUDA kernels...")
-        dummy_shape = (batchsize, c, w, h)
+        dummy_shape = (batchsize, c, h, w)
         dummy_labels = torch.zeros(batchsize, dtype=torch.long, device=device)
         solver_fn = euler_solve if loss_type == "flow_matching" else mean_flow_multistep_sample
         _ = solver_fn(
@@ -118,7 +135,7 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
             else:
                 gen_labels = torch.full((batchsize,), model.null_class_idx, dtype=torch.long, device=device)
 
-            shape = (batchsize, c, w, h)
+            shape = (batchsize, c, h, w)
             
             # --- Measure Generation Time ---
             torch.cuda.synchronize()
@@ -189,7 +206,8 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default="configs/unet_mnist_large.yaml")
+    # config_path is now optional!
+    parser.add_argument("--config_path", type=str, default=None)
     parser.add_argument("--checkpoint_path", type=str, required=True)
     parser.add_argument("--samples", type=int, default=1024)
     parser.add_argument("--steps_array", type=int, nargs="+", default=[16, 32])

@@ -231,7 +231,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         torch.cuda.reset_peak_memory_stats(device)
 
         if (epoch + 1) % 5 == 0 and save_all and local_rank == 0:
-            save_checkpoint(epoch, model, ema, optimizer, epoch_loss_list, config_stem, scheduler)
+            save_checkpoint(epoch, model, ema, optimizer, epoch_loss_list, config_stem, scheduler, config)
             print(f"Epoch {epoch+1} Checkpoint Saved!")
 
         scheduler.step() 
@@ -272,14 +272,14 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             dist.barrier(device_ids=[local_rank])
 
     if not save_all and local_rank == 0:
-        save_checkpoint(epochs - 1, model, ema, optimizer, epoch_loss_list, config_stem, scheduler)
+        save_checkpoint(epochs - 1, model, ema, optimizer, epoch_loss_list, config_stem, scheduler, config)
 
     if is_distributed:
         dist.destroy_process_group()
 
     return epoch_loss_list
 
-def save_checkpoint(epoch, model, ema, optimizer, epoch_loss_list, config_stem, scheduler):
+def save_checkpoint(epoch, model, ema, optimizer, epoch_loss_list, config_stem, scheduler, config):
     raw_model = model.module if hasattr(model, "module") else model
     raw_model = getattr(raw_model, "_orig_mod", raw_model)
 
@@ -289,7 +289,8 @@ def save_checkpoint(epoch, model, ema, optimizer, epoch_loss_list, config_stem, 
         'ema_state_dict': ema.ema_model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'epoch_loss_list': epoch_loss_list, 
-        'scheduler_state_dict': scheduler.state_dict()
+        'scheduler_state_dict': scheduler.state_dict(),
+        'config': config
     }
     filepath = f"./checkpoints/{config_stem}_epoch_{epoch+1}.pt"
     torch.save(checkpoint, filepath)
