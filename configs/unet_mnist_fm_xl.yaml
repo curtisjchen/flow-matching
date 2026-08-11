@@ -20,10 +20,6 @@ model:
   prefinal: 32
   time_in: 128
   time_out: 256
-  in_channels: 1
-  w: 28
-  h: 28
-  image_size: 28
   w_min: 1.0
   w_max: 3.0
   p_uncond: 0.1

@@ -100,7 +100,7 @@ Here are the parameters and hyperparameters used:
 
 ### 1. MNIST
 #### Trained conditionally but evaluated unconditionally
-| Method | $p(r=t)$ | Model | Training Time per Epoch (2x Tesla T4) | 1-NFE FID-50K | 8-NFE FID-50K | 32-NFE FID-50K | 64-NFE FID-50K | 
+| Method | $p(r=t)$ | Model | Training Time per Epoch (2x T4) | 1-NFE FID-50K | 8-NFE FID-50K | 32-NFE FID-50K | 64-NFE FID-50K | 
 | :--- | :---: | :---:| :---: | :---: | :---: | :---: | :---: | 
 | **Flow Matching** | 1.0 | UNet-Base | ~10s | 361.9 | 14.8 | 6.39 | 5.58 | 
 | **Flow Matching** | 1.0 | DiT-Base | ~22s | 361.2 | 20.44 | 10.28 | 9.42 | 
@@ -108,6 +108,14 @@ Here are the parameters and hyperparameters used:
 | **Mean Flow** | 0.5 | DiT-Base | ~44s | 58.0 | 8.31 | 7.32 | 9.17 | 
 | **Improved Mean Flow** | 0.5 | UNet-Base | ~1m12s | ~70 | x | x | x | 
 | **Improved Mean Flow** | 0.5 | DiT-Base | ~50s | 37.73 | 9.26 | 8.17 | 9.72 | 
+
+The checkpoints for UNet trained on mean flow and improved mean flow loss were lost and I did not want to spend time retraining and evaluating them again because of the high 1 step FID, so only the 1-NFE FID-50K numbers are available.
+
+The graph shows that UNet-Base outperforms DiT-Base on flow matching, reaching a very flow FID-50K of 5.58 at 64-NFE. The UNet has similar amount of parameters at 4.2M and takes a significantly shorter time to train (40% time taken of DiT with similar parameters). 
+
+#### Graphs of NFE to FID for the Models
+
+
 
 #### Visual Samples
 *(Insert sample grids for 1-NFE vs 50-NFE here)*
@@ -125,7 +133,8 @@ To evaluate each model's performance on generating conditioned samples, we can u
 > Compared unconditional generation of images because CFG training took too long for Mean Flows and Improved Mean Flows
 
 | Method | $p(r=t)$ | Model | 1-NFE FID-50K | 32-NFE FID-50K | 
-| :--- | :---: | :---:| :---: | :---: | 
+| :--- | :---: | :---:| :---: | :---: |
+| **Flow Matching** | 1.0 | UNet-Base | x | x | 
 | **Flow Matching** | 1.0 | DiT-Base | x | x | 
 | **Mean Flow** | 0.5 | DiT-Base | x | x |
 | **Improved Mean Flow** | 0.5 | DiT-Base | x | x | 

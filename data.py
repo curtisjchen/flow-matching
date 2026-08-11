@@ -1,11 +1,26 @@
-from torchvision.datasets import MNIST 
-from torchvision.transforms import Normalize, Compose, ToTensor
+import torchvision
+import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 import os
 
-def get_dataloader(batch_size, train): 
-    dataset = MNIST(root="./data", train=train, download=True, transform=Compose([ToTensor(), Normalize((0.1307,), (0.3081,))]))
+def get_dataloader(batch_size, train, dataset_name="mnist"):
+    if dataset_name == "cifar10":
+        # CIFAR-10 requires 3-channel normalization
+        transform = transforms.Compose([
+            transforms.RandomHorizontalFlip(), # Free data augmentation - highly recommended for CIFAR!
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) 
+        ])
+        dataset = torchvision.datasets.CIFAR10(root='./data', train=train, download=True, transform=transform)
+        
+    else: 
+        # Fallback to your existing MNIST logic
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5,), (0.5,))
+        ])
+        dataset = torchvision.datasets.MNIST(root='./data', train=train, download=True, transform=transform)
     is_distributed = "LOCAL_RANK" in os.environ
     
     if is_distributed:

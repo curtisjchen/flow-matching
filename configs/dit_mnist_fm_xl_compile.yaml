@@ -19,11 +19,6 @@ model:
   num_heads: 4
   num_layers: 6
   patch_size: 2
-  in_channels: 1
-  c: 1
-  w: 28
-  h: 28
-  image_size: 28
   w_min: 1.0
   w_max: 3.0
   p_uncond: 0.1

@@ -70,6 +70,16 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         dist.barrier(device_ids=[local_rank])
 
     data = get_dataloader(batch_size=config["training"]["batch_size"], train=True)
+
+    sample_images, _ = next(iter(data))
+    b, c, h, w = sample_images.shape
+    
+    config["model"].update({
+        "in_channels": c,
+        "h": h,
+        "w": w
+    })
+
     loss_type = config["training"].get("loss_type", "flow_matching")
     num_classes = config["model"]["num_classes"]
     cfg_aware_loss = config["model"].get("cfg_aware_loss", True)
