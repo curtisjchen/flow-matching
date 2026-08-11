@@ -20,21 +20,44 @@ def get_dataloader(batch_size, train, dataset_name="mnist"):
             transforms.Normalize((0.5,), (0.5,))
         ])
         dataset = torchvision.datasets.MNIST(root='./data', train=train, download=True, transform=transform)
-    kaggle_path = "/kaggle/input/datasets/pankrzysiu/cifar10-python"
-    if os.path.exists(kaggle_path):
-        data_root = kaggle_path
-        download_flag = False
-    else:
-        data_root = "./data"
-        download_flag = True
 
-    if dataset_name.lower() == "cifar10":
+    dataset_name = dataset_name.lower()
+
+    if dataset_name == "cifar10":
+        kaggle_cifar_path = "/kaggle/input/datasets/pankrzysiu/cifar10-python"
+        
+        if os.path.exists(kaggle_cifar_path):
+            data_root = kaggle_cifar_path 
+            download_flag = False
+            print(f"Loading CIFAR-10 instantly from Kaggle: {data_root}")
+        else:
+            data_root = "./data"
+            download_flag = True
+            print(f"Loading CIFAR-10 locally: {data_root}")
+            
         dataset = torchvision.datasets.CIFAR10(
             root=data_root, 
             train=train, 
             transform=transform, 
             download=download_flag
         )
+        
+    elif dataset_name == "mnist":
+        if os.path.exists("/kaggle/working"):
+            data_root = "/kaggle/working/data"
+        else:
+            data_root = "./data"
+            
+        print(f"Loading MNIST from: {data_root}")
+        
+        dataset = torchvision.datasets.MNIST(
+            root=data_root, 
+            train=train, 
+            transform=transform, 
+            download=True
+        )
+    else:
+        raise ValueError(f"Unsupported dataset: {dataset_name}")
 
     is_distributed = "LOCAL_RANK" in os.environ
     
