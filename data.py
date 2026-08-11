@@ -3,6 +3,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 import os
+import glob
 
 def get_dataloader(batch_size, train, dataset_name="mnist"):
     if dataset_name == "cifar10":
@@ -24,12 +25,12 @@ def get_dataloader(batch_size, train, dataset_name="mnist"):
     dataset_name = dataset_name.lower()
 
     if dataset_name == "cifar10":
-        kaggle_cifar_path = "/kaggle/input/datasets/pankrzysiu/cifar10-python"
+        kaggle_search = glob.glob("/kaggle/input/**/cifar-10-batches-py", recursive=True)
         
-        if os.path.exists(kaggle_cifar_path):
-            data_root = kaggle_cifar_path 
+        if kaggle_search:
+            data_root = os.path.dirname(kaggle_search[0]) 
             download_flag = False
-            print(f"Loading CIFAR-10 instantly from Kaggle: {data_root}")
+            print(f"Found CIFAR-10 instantly on Kaggle at: {data_root}")
         else:
             data_root = "./data"
             download_flag = True
