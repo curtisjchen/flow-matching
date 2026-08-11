@@ -64,16 +64,17 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             config = yaml.safe_load(f)
 
     config_stem = Path(config_path).stem
+    dataset = config["model"].get("dataset", "mnist")
     if is_distributed:
         if local_rank == 0:
-            get_dataloader(batch_size=config["training"]["batch_size"], train=True)
+            get_dataloader(batch_size=config["training"]["batch_size"], train=True, dataset_name=dataset)
         dist.barrier(device_ids=[local_rank])
 
-    data = get_dataloader(batch_size=config["training"]["batch_size"], train=True)
+    data = get_dataloader(batch_size=config["training"]["batch_size"], train=True, dataset_name=dataset)
 
     sample_images, _ = next(iter(data))
     b, c, h, w = sample_images.shape
-    
+
     config["model"].update({
         "in_channels": c,
         "h": h,
