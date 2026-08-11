@@ -13,7 +13,6 @@ def get_dataloader(batch_size, train, dataset_name="mnist"):
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) 
         ])
         dataset = torchvision.datasets.CIFAR10(root='./data', train=train, download=True, transform=transform)
-        
     else: 
         # Fallback to your existing MNIST logic
         transform = transforms.Compose([
@@ -21,6 +20,22 @@ def get_dataloader(batch_size, train, dataset_name="mnist"):
             transforms.Normalize((0.5,), (0.5,))
         ])
         dataset = torchvision.datasets.MNIST(root='./data', train=train, download=True, transform=transform)
+    kaggle_path = "/kaggle/input/datasets/pankrzysiu/cifar10-python"
+    if os.path.exists(kaggle_path):
+        data_root = kaggle_path
+        download_flag = False
+    else:
+        data_root = "./data"
+        download_flag = True
+
+    if dataset_name.lower() == "cifar10":
+        dataset = torchvision.datasets.CIFAR10(
+            root=data_root, 
+            train=train, 
+            transform=transform, 
+            download=download_flag
+        )
+
     is_distributed = "LOCAL_RANK" in os.environ
     
     if is_distributed:
