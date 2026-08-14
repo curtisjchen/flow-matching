@@ -1,0 +1,26 @@
+training:
+  epochs: 300
+  loss_type: improved_mean_flow
+  cfg_aware_loss: False 
+  batch_size: 256
+  learning_rate: 1.0e-4
+  min_lr: 1.0e-4
+  warmup_epochs: 5
+  p_rt: 0.5
+  adaptive_loss_power: 1.0
+  adaptive_loss_eps: 1.0e-2
+  time_sampler: logit_normal
+  logit_normal_mean: -0.4
+  logit_normal_std: 1.0
+
+model:
+  dataset: cifar10
+  type: dit
+  hidden_dim: 384
+  num_heads: 8
+  num_layers: 6
+  patch_size: 2
+  w_min: 1.0
+  w_max: 3.0
+  p_uncond: 1.0
+  num_classes: 10
