@@ -2,14 +2,18 @@ import yaml
 import argparse
 from utils import build_model
 
-def count_params(config_path):
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-        
-    # Build the model using your utility function
-    model = build_model(config=config)
+def count_params(config_path=None, config=None):
+    if not config_path and not config:
+        raise ValueError("Must provide either a 'model' or a 'checkpoint_path'")
+
+    if config_path:
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+            model = build_model(config=config)
+
+    else:
+        model = build_model(config=config)
     
-    # Count parameters
     num_params = sum(p.numel() for p in model.parameters())
     print(f"Model Configuration: {config_path}")
     print(f"Total Parameters: {num_params:,}")

@@ -88,7 +88,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
     model = build_model(config).to(device)
     ema = EMA(model, decay=0.99)
     if local_rank == 0:
-        print(count_params(config_path=config_path))
+        print(count_params(config=config))
     
     base_lr = config["training"]["learning_rate"]
     optimizer = torch.optim.AdamW(model.parameters(), lr=base_lr)
