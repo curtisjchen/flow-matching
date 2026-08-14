@@ -1,5 +1,5 @@
 training:
-  epochs: 300
+  epochs: 500
   loss_type: flow_matching
   batch_size: 512
   learning_rate: 1.0e-4

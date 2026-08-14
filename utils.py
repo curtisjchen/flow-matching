@@ -15,7 +15,8 @@ def build_model(config):
             num_layers=model_config["num_layers"],
             patch_size=model_config["patch_size"],
             in_channels=model_config["in_channels"],
-            image_size=model_config["image_size"],
+            h=model_config["h"],
+            w=model_config["w"],
             num_classes=model_config["num_classes"],
             w_min=model_config.get("w_min", 1.0),
             w_max=model_config.get("w_max", 5.0)
@@ -27,6 +28,7 @@ def build_model(config):
             w_max=model_config.get("w_max", 5.0),
             in_channels=model_config.get("in_channels", 1), 
             channels=model_config.get("channels", [64, 256]),
+            downsample_flags=model_config.get("downsample_flags", [True, True])
             prefinal=model_config.get("prefinal", 32),
             time_in=model_config.get("time_in", 128),
             time_out=model_config.get("time_out", 256),

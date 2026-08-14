@@ -6,6 +6,7 @@ from pathlib import Path
 
 from solver import euler_solve, mean_flow_multistep_sample
 from utils import build_model
+import math
 
 @torch.inference_mode()
 def generate(n_steps, checkpoint_path=None, model=None, config=None, samples=16, labels=None, cfg_scale=1.0, suffix="", compile_model=True): 
@@ -62,8 +63,9 @@ def generate(n_steps, checkpoint_path=None, model=None, config=None, samples=16,
     
     # Reverses the transforms.Normalize((0.5,), (0.5,)) you used in data.py
     sample = (sample * 0.5 + 0.5).clamp(0.0, 1.0)
-    
-    grid = torchvision.utils.make_grid(sample, nrow=4) # Fixed nrow to 4 for a nice 4x4 grid (16 samples)
+
+    dynamic_nrow = int(math.sqrt(samples))
+    grid = torchvision.utils.make_grid(sample, nrow=dynamic_nrow)
     
     # Create a safe filename 
     base_name = Path(checkpoint_path).stem if checkpoint_path else f"{config['model'].get('dataset', 'data')}_{loss_type}"

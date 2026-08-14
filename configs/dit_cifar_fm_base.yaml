@@ -1,5 +1,5 @@
 training:
-  epochs: 300
+  epochs: 500
   loss_type: flow_matching
   cfg_aware_loss: False 
   batch_size: 512 

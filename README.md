@@ -132,12 +132,14 @@ To evaluate each model's performance on generating conditioned samples, we can u
 
 > Compared unconditional generation of images because CFG training took too long for Mean Flows and Improved Mean Flows
 
-| Method | $p(r=t)$ | Model | 1-NFE FID-50K | 32-NFE FID-50K | 
-| :--- | :---: | :---:| :---: | :---: |
-| **Flow Matching** | 1.0 | UNet-Base | x | x | 
-| **Flow Matching** | 1.0 | DiT-Base | x | x | 
-| **Mean Flow** | 0.5 | DiT-Base | x | x |
-| **Improved Mean Flow** | 0.5 | DiT-Base | x | x | 
+| Method | $p(r=t)$ | Model | Training Time per Epoch (2x T4) | Epochs | 1-NFE FID-50K | 8-NFE FID-50K | 32-NFE FID-50K | 64-NFE FID-50K | 
+| :--- | :---: | :---:| :---: | :---: | :---: | :---: | :---: | :---: | 
+| **Flow Matching** | 1.0 | UNet-L | ~13s | 300 | 333.5 | 53.97 | 48.66 | 48.85 | 
+| **Flow Matching** | 1.0 | DiT-L | x | x | x | x | x | x | 
+| **Mean Flow** | 0.5 | UNet-Base  | x | x |  x | x | x | x | 
+| **Mean Flow** | 0.5 | DiT-Base | x | x |  x | x | x | x | 
+| **Improved Mean Flow** | 0.5 | UNet-Base | x |  x | x | x | x | x | 
+| **Improved Mean Flow** | 0.5 | DiT-Base | x |  x | x | x | x | x | 
 
 #### Visual Samples
 *(Insert CIFAR-10 unconditional sample grids here)*

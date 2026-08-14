@@ -1,5 +1,5 @@
 training:
-  epochs: 300
+  epochs: 500
   loss_type: improved_mean_flow
   cfg_aware_loss: False 
   batch_size: 256

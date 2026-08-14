@@ -266,7 +266,6 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
             gc.collect() 
             torch.cuda.empty_cache()
 
-        # Sync processes before starting next epoch
         if is_distributed:
             dist.barrier(device_ids=[local_rank])
 
