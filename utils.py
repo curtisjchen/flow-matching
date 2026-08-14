@@ -28,7 +28,7 @@ def build_model(config):
             w_max=model_config.get("w_max", 5.0),
             in_channels=model_config.get("in_channels", 1), 
             channels=model_config.get("channels", [64, 256]),
-            downsample_flags=model_config.get("downsample_flags", [True, True])
+            downsample_flags=model_config.get("downsample_flags", [True, True]),
             prefinal=model_config.get("prefinal", 32),
             time_in=model_config.get("time_in", 128),
             time_out=model_config.get("time_out", 256),
