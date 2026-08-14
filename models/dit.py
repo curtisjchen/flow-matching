@@ -8,7 +8,7 @@ class PatchEmbed(nn.Module):
         super().__init__()
         self.conv1 = nn.Conv2d(in_channels=in_channels, 
                                out_channels=hidden_dim, 
-                               kernel_size=(h, w),
+                               kernel_size=patch_size,
                                stride=patch_size)
         self.grid_h = h // patch_size
         self.grid_w = w // patch_size
