@@ -22,7 +22,7 @@ logging.getLogger("torch._inductor.utils").setLevel(logging.ERROR)
 
 from unittest.mock import patch
 
-def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_scheduler=False, save_all=True):
+def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_scheduler=False, save_every=5, save_all=True):
     is_distributed = "LOCAL_RANK" in os.environ
 
     if is_distributed:
@@ -134,7 +134,6 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
         compiled_mean_flow = mean_flow_loss
         compiled_improved_mean_flow = improved_mean_flow_loss
         
-    # Flow matching doesn't use JVP, so it compiles perfectly for both!
     compiled_flow_matching = torch.compile(flow_matching_loss)
 
     if is_distributed:
@@ -230,13 +229,12 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
 
         torch.cuda.reset_peak_memory_stats(device)
 
-        if (epoch + 1) % 5 == 0 and save_all and local_rank == 0:
+        if (epoch + 1) % save_every == 0 and save_all and local_rank == 0:
             save_checkpoint(epoch, model, ema, optimizer, epoch_loss_list, config_stem, scheduler, config)
             print(f"Epoch {epoch+1} Checkpoint Saved!")
 
         scheduler.step() 
 
-        # Generate & Eval (Rank 0 Only)
         eval_freq = 30 if loss_type == "flow_matching" else 10
 
         if (epoch + 1) % eval_freq == 0 and local_rank == 0:
@@ -298,5 +296,6 @@ if __name__ == "__main__":
     parser.add_argument("--resume_from", type=str, default=None)
     parser.add_argument("--config_path", type=str, default="configs/unet_mnist.yaml")
     parser.add_argument("--reset_scheduler", action="store_true")
+    parser.add_argument("--save_every", type=int, default=5)
     args = parser.parse_args()
-    train(resume_from=args.resume_from, config_path=args.config_path, reset_scheduler=args.reset_scheduler)
+    train(resume_from=args.resume_from, config_path=args.config_path, reset_scheduler=args.reset_scheduler, save_every=args.save_every)
