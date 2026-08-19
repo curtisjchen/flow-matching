@@ -19,7 +19,7 @@ model:
   type: dit
   hidden_dim: 384
   num_heads: 8
-  num_layers: 6
+  num_layers: 8
   patch_size: 2
   w_min: 1.0
   w_max: 3.0
