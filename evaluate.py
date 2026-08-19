@@ -86,8 +86,8 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
     num_classes = config["model"]["num_classes"]
     loss_type = config["training"].get("loss_type", "flow_matching")
     dataset_name = config["model"].get("dataset", "mnist")
+    cfg_aware = config["training"].get("cfg_aware_loss", True)
 
-    # 2. Setup FID & Dataset
     # FIX 3: Pass dataset_name so we don't accidentally load MNIST for a CIFAR-10 model
     temp_loader = get_dataloader(dataset_name=dataset_name, batch_size=batchsize, train=True)
     dataloader = DataLoader(
@@ -112,10 +112,11 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
         print("Warming up compiled model graph and CUDA kernels...")
         dummy_shape = (batchsize, c, h, w)
         dummy_labels = torch.zeros(batchsize, dtype=torch.long, device=device)
+        # Warmup
         solver_fn = euler_solve if loss_type == "flow_matching" else mean_flow_multistep_sample
         _ = solver_fn(
-            model=model, N=1, shape=dummy_shape, labels=dummy_labels, 
-            w_val=1.0, null_class_idx=model.null_class_idx
+            model=model, N=1, shape=dummy_shape, labels=dummy_labels,
+            w_val=1.0, null_class_idx=model.null_class_idx, cfg_aware=cfg_aware
         )
         torch.cuda.synchronize()
         print("Warmup complete.")
@@ -130,10 +131,11 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
         solver_fn = euler_solve if loss_type == "flow_matching" else mean_flow_multistep_sample
         
         for i in range(num_batches):
-            if cfg_scale > 1.0:
+            if cfg_aware and cfg_scale > 1.0:
                 gen_labels = torch.randint(0, num_classes, (batchsize,), device=device)
             else:
                 gen_labels = torch.full((batchsize,), model.null_class_idx, dtype=torch.long, device=device)
+
 
             shape = (batchsize, c, h, w)
             
@@ -142,8 +144,8 @@ def evaluate(config_path, step_counts, checkpoint_path=None, batchsize=256, samp
             t_gen = time.perf_counter()
             
             sample = solver_fn(
-                model=model, N=steps, shape=shape, labels=gen_labels, 
-                w_val=cfg_scale, null_class_idx=model.null_class_idx
+                model=model, N=steps, shape=shape, labels=gen_labels,
+                w_val=cfg_scale, null_class_idx=model.null_class_idx, cfg_aware=cfg_aware
             )
             
             torch.cuda.synchronize()

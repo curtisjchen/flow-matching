@@ -239,12 +239,16 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
 
         if (epoch + 1) % eval_freq == 0 and local_rank == 0:
             print(f"\n--- Running Generation & Eval for Epoch {epoch+1} ---")
-            n_steps = 16 if loss_type == "flow_matching" else 1
+            n_steps = 32 if loss_type == "flow_matching" else 1
             
             eval_model = ema.ema_model
             eval_model.eval()
             
-            gen_labels = (torch.arange(10 * num_classes) % num_classes).to(device)
+            gen_labels = (
+                            (torch.arange(10 * num_classes) % num_classes).to(device)
+                            if config['training'].get('cfg_aware_loss', True)
+                            else None
+                        )
 
             with patch('torch.distributed.is_initialized', return_value=False):
                 generate(
@@ -253,7 +257,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                 )
 
                 evaluate(
-                    config_path=config_path, step_counts=[n_steps], batchsize=256,
+                    config_path=config_path, step_counts=[n_steps], batchsize=512,
                     samples=8192, cfg_scale=1.0, model=eval_model, suffix=f"epoch_{epoch+1}",
                     compile_model=False
                 )
