@@ -29,8 +29,12 @@ def generate(n_steps, checkpoint_path=None, model=None, config=None, samples=16,
     c = config['model']['in_channels']
     h = config['model']['h']
     w = config['model']['w']
+    cfg_aware = config['training'].get('cfg_aware_loss', True)
     shape = (samples, c, h, w)
-    
+    if labels is not None and not cfg_aware:
+        print("Warning: cfg_aware_loss is False for this checkpoint — "
+            "explicit labels will be ignored; generation is unconditional.")
+
     model.eval()
     
     if compile_model and model is not None:
@@ -50,12 +54,12 @@ def generate(n_steps, checkpoint_path=None, model=None, config=None, samples=16,
     if loss_type == "flow_matching":
         sample = euler_solve(
             model=model, N=n_steps, shape=shape, labels=labels, 
-            w_val=cfg_scale, null_class_idx=config['model']['num_classes']
+            w_val=cfg_scale, null_class_idx=config['model']['num_classes'], cfg_aware=cfg_aware
         )
     else:
         sample = mean_flow_multistep_sample(
             model=model, N=n_steps, shape=shape, labels=labels, 
-            w_val=cfg_scale, null_class_idx=config['model']['num_classes']
+            w_val=cfg_scale, null_class_idx=config['model']['num_classes'], cfg_aware=cfg_aware
         )
 
     # --- 4. Denormalize and Save ---

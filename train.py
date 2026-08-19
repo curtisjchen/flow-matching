@@ -86,7 +86,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
     cfg_aware_loss = config["model"].get("cfg_aware_loss", True)
     
     model = build_model(config).to(device)
-    ema = EMA(model, decay=0.99)
+    ema = EMA(model, decay=0.995)
     if local_rank == 0:
         print(count_params(config=config))
     
@@ -188,7 +188,7 @@ def train(config_path="configs/unet_mnist.yaml", resume_from=None, reset_schedul
                         p_uncond=config['model']['p_uncond'], 
                         w_min=config['model']['w_min'], 
                         w_max=config['model']['w_max'],
-                        
+                        cfg_aware_loss=cfg_aware_loss
                     )
                     diagnostics = {}
                 
